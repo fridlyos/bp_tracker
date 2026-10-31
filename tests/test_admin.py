@@ -35,7 +35,7 @@ def test_admin_creates_user_who_can_log_in():
     c = _admin()
     r = c.post("/users/new", data={"username": "fromadmin", "password": "pw"},
                follow_redirects=False)
-    assert r.headers["location"] == "/users-ui"
+    assert r.headers["location"] == "/users-ui?created=fromadmin"
     assert "@fromadmin" in c.get("/users-ui").text
     dup = c.post("/users/new", data={"username": "fromadmin", "password": "x"})
     assert "That username is taken." in dup.text
@@ -43,6 +43,27 @@ def test_admin_creates_user_who_can_log_in():
     u = TestClient(app)
     u.post("/login", data={"username": "fromadmin", "password": "pw"})
     assert "Add reading" in u.get("/").text
+
+
+def test_create_then_switch_to_user_and_log():
+    c = _admin()
+    r = c.post("/users/new", data={"username": "me too", "password": "pw2"})
+    assert "Created <b>@me too</b>" in r.text and "Switch to @me too" in r.text
+    # switch: logs admin out, lands on login with username prefilled
+    r = c.post("/logout", data={"switch_to": "me too"}, follow_redirects=False)
+    assert r.headers["location"] == "/login?username=me+too"
+    page = c.get(r.headers["location"])
+    assert 'value="me too"' in page.text
+    c.post("/login", data={"username": "me too", "password": "pw2"})
+    home = c.get("/")
+    assert "Add reading" in home.text and 'href="/users-ui"' not in home.text
+    assert c.post("/api/readings", json={"systolic": 121, "diastolic": 79}).status_code == 201
+
+
+def test_admin_can_log_readings():
+    c = _admin()
+    assert c.post("/api/readings", json={"systolic": 130, "diastolic": 85}).status_code == 201
+    assert "130/85" in c.get("/").text
 
 
 def test_non_admin_cannot_create_users():

@@ -5,6 +5,7 @@ Anonymous visitors are redirected to /login. Admin-only pages check is_admin.
 """
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
@@ -62,11 +63,10 @@ def _home_ctx(request, conn, user, form=None, error=None):
 @router.get("/")
 def home(request: Request, conn=Depends(db.get_db),
          user: User | None = Depends(current_user)):
-    """Quick-add form + today's readings. Anonymous -> /login; admins -> /users-ui."""
+    """Quick-add form + today's readings. Anonymous -> /login. Admins log
+    readings like anyone else; they just also get the Users page."""
     if user is None:
         return _to("/login")
-    if user.is_admin:
-        return _to("/users-ui")
     return _render(request, "home.html", user, _home_ctx(request, conn, user))
 
 
@@ -166,10 +166,12 @@ def register_submit(request: Request, username: str = Form(...), password: str =
 
 
 @router.get("/login")
-def login_form(request: Request, user: User | None = Depends(current_user)):
+def login_form(request: Request, username: str = Query(""),
+               user: User | None = Depends(current_user)):
+    """Login form; ?username= prefills the field (used by admin's "Switch to")."""
     if user is not None:
         return _to("/")
-    return _render(request, "login.html", None, {"error": None})
+    return _render(request, "login.html", None, {"error": None, "username": username})
 
 
 @router.post("/login")
@@ -177,27 +179,33 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
                  conn=Depends(db.get_db)):
     u = service.authenticate(conn, username.strip(), password)
     if u is None:
-        return _render(request, "login.html", None, {"error": "Wrong username or password."})
+        return _render(request, "login.html", None,
+                       {"error": "Wrong username or password.", "username": username.strip()})
     request.session["uid"] = u.id
     return _to("/")
 
 
 @router.post("/logout")
-def logout(request: Request):
+def logout(request: Request, switch_to: str = Form("")):
+    """Log out. With switch_to, land on login with that username prefilled."""
     request.session.clear()
+    if switch_to:
+        return _to(f"/login?{urlencode({'username': switch_to})}")
     return _to("/login")
 
 
 # --- admin console
 
 @router.get("/users-ui")
-def users_page(request: Request, conn=Depends(db.get_db),
-               user: User | None = Depends(current_user)):
+def users_page(request: Request, created: str | None = Query(None),
+               conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """Admin console. ?created=<username> shows a "switch to this user" notice."""
     if user is None:
         return _to("/login")
     if not user.is_admin:
         return _to("/")
-    return _render(request, "users.html", user, {"users": service.list_users(conn)})
+    return _render(request, "users.html", user,
+                   {"users": service.list_users(conn), "created": created})
 
 
 @router.post("/users/new")
@@ -207,12 +215,12 @@ def users_create(request: Request, username: str = Form(...), password: str = Fo
     if user is None or not user.is_admin:
         return _to("/login")
     try:
-        service.register_user(conn, username.strip(), password)
+        new = service.register_user(conn, username.strip(), password)
     except ValueError:
         return _render(request, "users.html", user, {
             "users": service.list_users(conn), "create_error": "That username is taken.",
             "create_username": username})
-    return _to("/users-ui")
+    return _to(f"/users-ui?{urlencode({'created': new.username})}")
 
 
 @router.post("/users/{user_id}/delete")

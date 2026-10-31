@@ -3,14 +3,24 @@
 <div class="page-head">
   <div>
     <h1>Users</h1>
-    <p class="page-subtitle">Admin console — manage registered accounts.</p>
+    <p class="page-subtitle">Admin console — manage registered accounts.
+      You can also log readings as admin from <a href="/">Today</a>.</p>
   </div>
 </div>
 
+{% if created %}
+<section class="panel notice">
+  <p>Created <b>@{{ created }}</b>. To log readings as this user, switch to it.
+     You'll be asked for its password.</p>
+  <form method="post" action="/logout" class="inline">
+    <input type="hidden" name="switch_to" value="{{ created }}">
+    <button type="submit">Switch to @{{ created }}</button>
+  </form>
+</section>
+{% endif %}
+
 <section class="panel">
   <h2>Create user</h2>
-  <p class="muted">Admin only manages accounts. To log readings, create a regular user
-     here (or log out and register), then log in as that user.</p>
   {% if create_error %}<p class="error">{{ create_error }}</p>{% endif %}
   <form method="post" action="/users/new">
     <label>Username <input name="username" autocomplete="off" required value="{{ create_username or '' }}"></label>
@@ -31,6 +41,12 @@
     <div class="profile-main">
       <b>@{{ u.username }}</b>
       <span class="food-meta">{% if u.is_admin %}admin · {% endif %}since {{ (u.created_at or '')[:10] }}</span>
+      {% if u.id != user.id %}
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="switch_to" value="{{ u.username }}">
+        <button type="submit" class="link-button">Switch to this user</button>
+      </form>
+      {% endif %}
     </div>
     <button type="button" class="compact secondary" data-dialog-open="reset-{{ u.id }}">Reset password</button>
     {% if u.is_admin %}

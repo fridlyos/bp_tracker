@@ -48,7 +48,9 @@ def test_admin_seeded_and_sees_users():
     c = _client()
     c.post("/login", data={"username": "admin", "password": "admin"})
     r = c.get("/")
-    assert r.url.path == "/users-ui" and "@admin" in r.text
+    # admin logs readings like anyone; Users is an extra nav entry
+    assert r.url.path == "/" and "Add reading" in r.text and 'href="/users-ui"' in r.text
+    assert "@admin" in c.get("/users-ui").text
 
 
 def test_non_admin_cannot_open_users_page():

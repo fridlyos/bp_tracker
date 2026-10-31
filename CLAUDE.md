@@ -12,7 +12,9 @@ Jinja2 UI, installable PWA, deployed on Fly.io. Setup mirrors `../lose_weight`.
 - `app/main.py` — app wiring: lifespan (migrate + seed admin), session
   middleware, static mount, root-scoped `/sw.js`, catch-all error logger.
 - `app/web.py` — HTML routes. Acting user comes from the signed session cookie
-  (`request.session["uid"]`). Anonymous -> `/login`; admin -> `/users-ui`.
+  (`request.session["uid"]`). Anonymous -> `/login`. Admin logs readings like
+  any user and additionally gets `/users-ui` (create/reset/delete users,
+  "Switch to this user" = logout + login prefilled).
 - `app/api.py` — JSON API under `/api` (readings CRUD + purge, `/api/stats`
   chart data). Same session cookie as the web UI; 401 when not logged in.
 - `app/templates/trends.html` — Chart.js 4.4.1 (cdnjs) page fed by
