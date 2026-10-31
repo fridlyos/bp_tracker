@@ -31,6 +31,11 @@ Jinja2 UI, installable PWA, deployed on Fly.io. Setup mirrors `../lose_weight`.
   `backups/` before applying new migrations.
 - `app/auth.py` — stdlib pbkdf2 password hashing.
 - `app/templates/`, `app/static/` — UI, PWA manifest, service worker, icons.
+  Shell in `base.html`: sticky top bar with account menu (avatar + username,
+  theme, Log out, Users for admin); nav is a left rail on desktop and a fixed
+  bottom tab bar ≤640px. iPhone: `viewport-fit=cover` + `env(safe-area-inset-*)`
+  padding, ≥44px tap targets, inputs ≥16px (no iOS zoom). Text on primary
+  fills uses `--on-primary` (dark text in dark mode).
 
 ## Rules
 

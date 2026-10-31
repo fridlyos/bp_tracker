@@ -2,16 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- viewport-fit=cover: draw under the notch / home bar; safe-area padding in CSS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>BP Tracker</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="manifest" href="/static/manifest.webmanifest">
-  <meta name="theme-color" content="#2563eb">
+  <meta name="theme-color" content="#f8fafc">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="BP">
   <script>
-    document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
+    try { document.documentElement.dataset.theme = localStorage.getItem("theme") || "light"; }
+    catch (e) { document.documentElement.dataset.theme = "light"; }
   </script>
   <script>
     // server stores local wall-clock times; tell it which zone "now"/"today" are in
@@ -26,30 +30,50 @@
   </script>
 {% block head %}{% endblock %}
 </head>
-<body>
-  <div class="layout">
-    {% set path = request.url.path %}
-    <aside class="sidebar">
-      <div class="brand">BP Tracker</div>
-      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle theme"></button>
-      <nav>
-        {% if user %}
-          <a href="/"{% if path == "/" %} class="active"{% endif %}>Today</a>
-          <a href="/trends"{% if path.startswith("/trends") %} class="active"{% endif %}>Trends</a>
-          <a href="/history"{% if path.startswith("/history") %} class="active"{% endif %}>History</a>
-          <a href="/settings"{% if path.startswith("/settings") %} class="active"{% endif %}>Settings</a>
-          {% if user.is_admin %}
-          <a href="/users-ui"{% if path.startswith("/users") %} class="active"{% endif %}>Users</a>
-          {% endif %}
-        {% endif %}
-      </nav>
-      {% if user %}
-      <div class="whoami">
-        {{ user.username }}{% if user.is_admin %}<br><span class="muted">admin</span>{% endif %}
-        <form method="post" action="/logout" class="inline"><button type="submit" class="link-button">Log out</button></form>
+<body class="{{ 'signed-in' if user else 'signed-out' }}">
+  {% set path = request.url.path %}
+  <header class="topbar">
+    <a class="brand" href="/">BP Tracker</a>
+    {% if user %}
+    <details class="user-menu">
+      <summary aria-label="Account: {{ user.username }}">
+        <span class="avatar" aria-hidden="true">{{ user.username[:1]|upper }}</span>
+        <span class="uname">{{ user.username }}</span>
+        {% if user.is_admin %}<span class="role">admin</span>{% endif %}
+        <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="menu" role="menu">
+        <div class="menu-who">
+          <span class="muted">Signed in as</span>
+          <b>{{ user.username }}</b>{% if user.is_admin %}<span class="muted">administrator</span>{% endif %}
+        </div>
+        {% if user.is_admin %}<a class="menu-item" role="menuitem" href="/users-ui">Users &amp; switch account</a>{% endif %}
+        <button type="button" class="menu-item" role="menuitem" data-theme-toggle></button>
+        <form method="post" action="/logout">
+          <button type="submit" class="menu-item danger-text" role="menuitem">Log out</button>
+        </form>
       </div>
+    </details>
+    {% else %}
+    <button type="button" class="icon-toggle" data-theme-toggle data-compact></button>
+    {% endif %}
+  </header>
+
+  <div class="layout">
+    {% if user %}
+    <nav class="tabbar" aria-label="Main">
+      {% macro tab(href, label, active) %}
+      <a href="{{ href }}"{% if active %} class="active" aria-current="page"{% endif %}>{{ caller() }}<span>{{ label }}</span></a>
+      {% endmacro %}
+      {% call tab("/", "Today", path == "/") %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>{% endcall %}
+      {% call tab("/trends", "Trends", path.startswith("/trends")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 6-8 3 3"/><path d="M3 21h18"/></svg>{% endcall %}
+      {% call tab("/history", "History", path.startswith("/history")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>{% endcall %}
+      {% call tab("/settings", "Settings", path.startswith("/settings")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>{% endcall %}
+      {% if user.is_admin %}
+      {% call tab("/users-ui", "Users", path.startswith("/users")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 010 6.4M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>{% endcall %}
       {% endif %}
-    </aside>
+    </nav>
+    {% endif %}
     <main>
       {% block content %}{% endblock %}
     </main>
@@ -63,18 +87,31 @@
   <script>
     (function () {
       const root = document.documentElement;
-      const btn = document.querySelector("[data-theme-toggle]");
+      const btns = document.querySelectorAll("[data-theme-toggle]");
+      const meta = document.querySelector('meta[name="theme-color"]');
       function render() {
         const dark = root.dataset.theme === "dark";
-        btn.textContent = dark ? "☀️" : "🌙";  // shows the mode you switch TO
-        btn.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+        btns.forEach(b => {
+          // compact = icon only (signed-out top bar); menu item = icon + words
+          b.textContent = b.hasAttribute("data-compact") ? (dark ? "☀️" : "🌙")
+                                                          : (dark ? "☀️  Light mode" : "🌙  Dark mode");
+          b.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+        });
+        if (meta) meta.content = getComputedStyle(document.body).backgroundColor;
       }
       render();
-      btn.addEventListener("click", () => {
+      btns.forEach(b => b.addEventListener("click", () => {
         root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
-        localStorage.setItem("theme", root.dataset.theme);
+        try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
         render();
-      });
+      }));
+
+      // account menu: close on outside tap or Escape
+      const menu = document.querySelector(".user-menu");
+      if (menu) {
+        document.addEventListener("click", e => { if (!menu.contains(e.target)) menu.open = false; });
+        document.addEventListener("keydown", e => { if (e.key === "Escape") menu.open = false; });
+      }
     })();
   </script>
 </body>
