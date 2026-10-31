@@ -23,7 +23,8 @@
   <h2>Create user</h2>
   {% if create_error %}<p class="error">{{ create_error }}</p>{% endif %}
   <form method="post" action="/users/new">
-    <label>Username <input name="username" autocomplete="off" required value="{{ create_username or '' }}"></label>
+    <label>Username <input name="username" autocomplete="off" required value="{{ create_username or '' }}"
+                           autocapitalize="none" autocorrect="off" spellcheck="false"></label>
     <label>Password <input type="password" name="password" autocomplete="new-password" required></label>
     <div class="dialog-actions">
       <button type="submit">Create user</button>

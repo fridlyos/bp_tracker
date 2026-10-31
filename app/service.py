@@ -21,8 +21,16 @@ def _user(row) -> User:
     return User(**d)
 
 
+def normalize_username(username: str) -> str:
+    """Usernames are case-insensitive: phones auto-capitalize the first letter."""
+    return username.strip().lower()
+
+
 def register_user(conn, username: str, password: str) -> User:
     """Create an account. Raises ValueError if the username is taken."""
+    username = normalize_username(username)
+    if not username:
+        raise ValueError("username required")
     try:
         cur = conn.execute(
             "INSERT INTO users (username, password_hash) VALUES (?, ?)",
@@ -36,10 +44,16 @@ def register_user(conn, username: str, password: str) -> User:
 
 
 def authenticate(conn, username: str, password: str) -> User | None:
-    """Return the user if username/password match, else None."""
+    """Return the user if username/password match, else None.
+
+    Failures are logged with the attempted username (never the password) and
+    whether that user exists, so `fly logs` shows why a login didn't go in."""
+    username = normalize_username(username)
     row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     if row and auth.verify_password(password, row["password_hash"]):
         return _user(row)
+    logger.warning("failed login for %r (%s)", username,
+                   "wrong password" if row else "no such user")
     return None
 
 
