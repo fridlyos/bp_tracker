@@ -72,13 +72,15 @@ normal band is still open.
 - Optional: shaded normal band (<120/80) on chart.
 - Tests: averages math, range bounds.
 
-### Phase 4 — Deploy
+### Phase 4 — Deploy (done 2026-10-31)
 - `fly.toml` copied, app `bp-tracker-fridl`, env `BP_DB=/data/bp.db`.
 - `flyctl apps create`, `flyctl volumes create data --size 1`,
   `flyctl secrets set SECRET_KEY=...`, `flyctl deploy`.
-- Rotate seeded admin password (lose_weight still has admin/admin).
+- Admin password: set as `ADMIN_PASSWORD` Fly secret before the first boot, so
+  admin/admin never existed in prod (lose_weight still has admin/admin).
 - GitHub repo `fridlyos/bp_tracker`, push.
-- Add to iPhone home screen.
+- Live at https://bp-tracker-fridl.fly.dev/
+- Add to iPhone home screen (manual: Safari → Share → Add to Home Screen).
 
 ### Later (only if wanted)
 - CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
