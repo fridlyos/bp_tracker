@@ -23,7 +23,7 @@
 
 <div class="stat-row" id="stats">
   <div class="stat"><span class="stat-label">Average BP</span>
-    <span class="stat-value" id="stat-bp">–</span><span class="stat-unit">mmHg</span></div>
+    <span class="stat-value" id="stat-bp">–</span><span class="stat-unit">mmHg · mean <span id="stat-map">–</span></span></div>
   <div class="stat"><span class="stat-label">Average pulse</span>
     <span class="stat-value" id="stat-pulse">–</span><span class="stat-unit">bpm</span></div>
   <div class="stat"><span class="stat-label">Readings</span>
@@ -40,11 +40,13 @@
       <h2>Blood pressure <span class="muted">mmHg</span></h2>
       <div class="chart-legend" aria-hidden="true">
         <span><i class="line-key" style="background: var(--s-sys)"></i>Systolic</span>
+        <span><i class="line-key" style="background: var(--s-map)"></i>Mean</span>
         <span><i class="line-key" style="background: var(--s-dia)"></i>Diastolic</span>
       </div>
     </div>
     <div class="chart-box chart-box-tall"><canvas id="bp-chart" role="img"
-      aria-label="Blood pressure line chart, systolic and diastolic. Values are in the table below."></canvas></div>
+      aria-label="Blood pressure line chart: systolic, mean arterial pressure and diastolic. Values are in the table below."></canvas></div>
+    <p class="chart-note">Mean = mean arterial pressure: diastolic + ⅓ × (systolic − diastolic).</p>
   </section>
 
   <section class="panel chart-card" id="pulse-card">
@@ -66,7 +68,7 @@
     <summary><h2>Table</h2></summary>
     <div class="table-wrap">
       <table>
-        <thead><tr><th id="col-x">Day</th><th>BP</th><th>Pulse</th><th>Count</th></tr></thead>
+        <thead><tr><th id="col-x">Day</th><th>BP</th><th>Mean</th><th>Pulse</th><th>Count</th></tr></thead>
         <tbody id="table-body"></tbody>
       </table>
     </div>
@@ -215,6 +217,7 @@
     $("range-label").textContent = range === "day" ? `${RANGE_TEXT.day} ${fmtLong(data.start)}`
       : `${RANGE_TEXT[range]} (${fmtDay(data.start)} – ${fmtDay(data.end)})`;
     $("stat-bp").textContent = s.count ? `${r0(s.systolic)}/${r0(s.diastolic)}` : "–";
+    $("stat-map").textContent = r0(s.map);
     $("stat-pulse").textContent = r0(s.pulse);
     $("stat-count").textContent = String(s.count);
     $("empty").hidden = s.count > 0;
@@ -227,7 +230,9 @@
     const val = (k) => sh.byKey.map((p) => (p ? p[k] : null));
     const dense = sh.keys.length > 45;
     charts.bp = lineChart($("bp-chart"), sh, [
+      // top-to-bottom order matches the lines, the legend and the tooltip
       dataset("Systolic", val("systolic"), css("--s-sys"), dense),
+      dataset("Mean", val("map"), css("--s-map"), dense),
       dataset("Diastolic", val("diastolic"), css("--s-dia"), dense),
     ], 60, 150);
     const pulse = val("pulse");
@@ -251,7 +256,7 @@
         th.appendChild(b);
       }
       tr.appendChild(th);
-      [`${r0(p.systolic)}/${r0(p.diastolic)}`, r0(p.pulse), String(p.count)].forEach((t) => {
+      [`${r0(p.systolic)}/${r0(p.diastolic)}`, r0(p.map), r0(p.pulse), String(p.count)].forEach((t) => {
         const td = document.createElement("td"); td.textContent = t; tr.appendChild(td);
       });
       body.appendChild(tr);

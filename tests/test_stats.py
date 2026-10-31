@@ -42,9 +42,24 @@ def test_daily_averages_math():
                                (c.username,)).fetchone()[0]
         rows = service.daily_averages(conn, user_id, date(2026, 10, 1), date(2026, 10, 3))
     assert rows == [
-        {"x": "2026-10-01", "systolic": 125.3, "diastolic": 82.0, "pulse": 65.5, "count": 3},
-        {"x": "2026-10-03", "systolic": 140.0, "diastolic": 90.0, "pulse": 75.0, "count": 1},
+        {"x": "2026-10-01", "systolic": 125.3, "diastolic": 82.0, "map": 96.4,
+         "pulse": 65.5, "count": 3},
+        {"x": "2026-10-03", "systolic": 140.0, "diastolic": 90.0, "map": 106.7,
+         "pulse": 75.0, "count": 1},
     ]
+
+
+def test_mean_arterial_pressure():
+    assert service.mean_arterial(120, 80) == 93.3
+    assert service.mean_arterial(140, 90) == 106.7
+    assert service.mean_arterial(None, 80) is None
+
+
+def test_day_points_carry_map():
+    c = _user()
+    _add(c, "2026-08-01T08:00", 120, 81)
+    s = c.get("/api/stats", params={"range": "day", "date": "2026-08-01"}).json()
+    assert s["points"][0]["map"] == 94.0 and s["summary"]["map"] == 94.0
 
 
 def test_week_range_bounds():
@@ -56,7 +71,8 @@ def test_week_range_bounds():
     s = c.get("/api/stats", params={"range": "week"}).json()
     assert s["start"] == str(today - timedelta(days=6)) and s["end"] == str(today)
     assert [p["x"] for p in s["points"]] == [str(today - timedelta(days=6)), str(today)]
-    assert s["summary"] == {"systolic": 125.0, "diastolic": 82.0, "pulse": 70.0, "count": 2}
+    assert s["summary"] == {"systolic": 125.0, "diastolic": 82.0, "map": 96.3,
+                            "pulse": 70.0, "count": 2}
 
     m = c.get("/api/stats", params={"range": "month"}).json()
     assert m["start"] == str(today - timedelta(days=29)) and m["summary"]["count"] == 3

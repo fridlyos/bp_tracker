@@ -281,8 +281,9 @@ dialog::backdrop { background: var(--backdrop); }
   --viz-grid: #eef2f6;
   --viz-axis: #cbd5e1;
   --s-sys: #2a78d6;
+  --s-map: #1baf7a;   /* sys · map · dia validated as an adjacent set */
   --s-dia: #eb6834;
-  --s-pulse: #1baf7a;
+  --s-pulse: #6250d6; /* own chart; violet so no hue is shared with BP */
 }
 :root[data-theme="dark"] .viz-root {
   --viz-surface: #1b3149;
@@ -293,8 +294,9 @@ dialog::backdrop { background: var(--backdrop); }
   --viz-grid: #263f5a;
   --viz-axis: #3d5a78;
   --s-sys: #3987e5;
+  --s-map: #199e70;
   --s-dia: #d95926;
-  --s-pulse: #199e70;
+  --s-pulse: #9085e9;
 }
 .range-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: 1rem; }
 .range-tabs { display: flex; gap: .3rem; flex-wrap: wrap; }
@@ -317,6 +319,8 @@ dialog::backdrop { background: var(--backdrop); }
 .chart-box { position: relative; height: 170px; }
 .chart-box-tall { height: 260px; }
 .chart-hint { font-size: .82rem; margin: -.4rem 0 1rem; }
+.chart-note { margin: .4rem 0 .1rem; font-size: .75rem; color: var(--viz-muted); }
+.chart-legend { flex-wrap: wrap; }
 #charts { transition: opacity .15s; }
 #charts.loading { opacity: .55; }
 @media (max-width: 640px) {

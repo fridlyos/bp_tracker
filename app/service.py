@@ -173,11 +173,20 @@ def daily_averages(conn, user_id: int, start: date, end: date) -> list[dict]:
         (user_id, start.isoformat(), (end + timedelta(days=1)).isoformat()),
     )
     return [{"x": r["day"], "systolic": _r1(r["systolic"]), "diastolic": _r1(r["diastolic"]),
+             "map": mean_arterial(r["systolic"], r["diastolic"]),
              "pulse": _r1(r["pulse"]), "count": r["count"]} for r in rows]
 
 
 def _r1(v):
     return None if v is None else round(v, 1)
+
+
+def mean_arterial(systolic, diastolic) -> float | None:
+    """Mean arterial pressure: DIA + (SYS - DIA) / 3 — the standard single
+    "average BP" figure. Linear, so MAP of averages == average of MAPs."""
+    if systolic is None or diastolic is None:
+        return None
+    return _r1(diastolic + (systolic - diastolic) / 3)
 
 
 def _summary(conn, user_id: int, start: date, end: date) -> dict:
@@ -188,6 +197,7 @@ def _summary(conn, user_id: int, start: date, end: date) -> dict:
         (user_id, start.isoformat(), (end + timedelta(days=1)).isoformat()),
     ).fetchone()
     return {"systolic": _r1(r["systolic"]), "diastolic": _r1(r["diastolic"]),
+            "map": mean_arterial(r["systolic"], r["diastolic"]),
             "pulse": _r1(r["pulse"]), "count": r["count"]}
 
 
@@ -202,6 +212,7 @@ def stats(conn, user_id: int, range_: str, today: date, day: date | None = None)
     if range_ == "day":
         start = end = day or today
         points = [{"x": r.taken_at, "systolic": r.systolic, "diastolic": r.diastolic,
+                   "map": mean_arterial(r.systolic, r.diastolic),
                    "pulse": r.pulse, "count": 1}
                   for r in reversed(list_readings(conn, user_id, start, end))]
     elif range_ in RANGE_DAYS:
