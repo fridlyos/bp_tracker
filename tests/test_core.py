@@ -31,7 +31,7 @@ def test_register_login_home():
     assert c.get("/", follow_redirects=False).headers["location"] == "/login"
 
     bad = c.post("/login", data={"username": "alice", "password": "nope"})
-    assert "Wrong username or password" in bad.text
+    assert "Wrong password for “alice”" in bad.text
 
     c.post("/login", data={"username": "alice", "password": "pw"})
     assert "Add reading" in c.get("/").text

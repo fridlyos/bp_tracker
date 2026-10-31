@@ -57,6 +57,11 @@ def authenticate(conn, username: str, password: str) -> User | None:
     return None
 
 
+def username_exists(conn, username: str) -> bool:
+    return conn.execute("SELECT 1 FROM users WHERE username = ?",
+                        (normalize_username(username),)).fetchone() is not None
+
+
 def get_user(conn, user_id: int) -> User | None:
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return _user(row) if row else None

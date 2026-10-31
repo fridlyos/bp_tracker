@@ -19,9 +19,28 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 router = APIRouter()
 
 
-def current_user(request: Request, conn=Depends(db.get_db)) -> User | None:
+def start_session(request: Request, user: User) -> None:
+    # store the username too: SQLite reuses a deleted user's id, and a stale
+    # cookie must not log in as whoever gets that id next
+    request.session.clear()
+    request.session.update({"uid": user.id, "u": user.username})
+
+
+def session_user(request: Request, conn) -> User | None:
+    """The signed-in user, or None. A cookie whose uid now belongs to a
+    different (or no) user is cleared."""
     uid = request.session.get("uid")
-    return service.get_user(conn, uid) if uid else None
+    if not uid:
+        return None
+    user = service.get_user(conn, uid)
+    if user is None or request.session.get("u") != user.username:
+        request.session.clear()
+        return None
+    return user
+
+
+def current_user(request: Request, conn=Depends(db.get_db)) -> User | None:
+    return session_user(request, conn)
 
 
 def _render(request, name, user, ctx):
@@ -161,7 +180,7 @@ def register_submit(request: Request, username: str = Form(...), password: str =
         u = service.register_user(conn, username.strip(), password)
     except ValueError:
         return _render(request, "register.html", None, {"error": "That username is taken."})
-    request.session["uid"] = u.id
+    start_session(request, u)
     return _to("/")
 
 
@@ -179,9 +198,14 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
                  conn=Depends(db.get_db)):
     u = service.authenticate(conn, username.strip(), password)
     if u is None:
-        return _render(request, "login.html", None,
-                       {"error": "Wrong username or password.", "username": username.strip()})
-    request.session["uid"] = u.id
+        # Personal app with a handful of accounts: saying which part was wrong
+        # is worth more than hiding whether a username exists. Both messages
+        # echo the normalized name so a typo ("fridlyos" vs "fridyos") is visible.
+        name = service.normalize_username(username)
+        error = (f"Wrong password for “{name}”." if service.username_exists(conn, name)
+                 else f"No account called “{name}”. Check the spelling, or register.")
+        return _render(request, "login.html", None, {"error": error, "username": name})
+    start_session(request, u)
     return _to("/")
 
 

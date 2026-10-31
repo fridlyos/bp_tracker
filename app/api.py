@@ -10,15 +10,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from . import clock, db, service
 from .schemas import PurgeIn, Reading, ReadingIn
+from .web import session_user
 
 router = APIRouter(prefix="/api")
 
 
 def api_user(request: Request, conn=Depends(db.get_db)) -> int:
-    uid = request.session.get("uid")
-    if not uid or service.get_user(conn, uid) is None:
+    user = session_user(request, conn)
+    if user is None:
         raise HTTPException(401, "not logged in")
-    return uid
+    return user.id
 
 
 @router.post("/readings", response_model=Reading, status_code=201)

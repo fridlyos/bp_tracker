@@ -34,7 +34,7 @@ def test_register_normalizes_and_blocks_case_duplicates():
 def test_password_stays_case_sensitive():
     TestClient(app).post("/register", data={"username": "pwcase", "password": "Secret"})
     r = TestClient(app).post("/login", data={"username": "pwcase", "password": "secret"})
-    assert "Wrong username or password" in r.text
+    assert "Wrong password for “pwcase”" in r.text
 
 
 def test_failed_login_logged_without_password(caplog):
