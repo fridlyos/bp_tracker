@@ -43,12 +43,13 @@
     <div class="zone-legend">
       <div><span class="zone-name">Systolic</span>
         <span class="zones">
-          <span><i class="line-key" style="background: var(--z-sys-ok)"></i>&lt;130</span>
+          <span><i class="line-key" style="background: var(--z-good)"></i>≤120</span>
+          <span><i class="line-key" style="background: var(--z-sys-ok)"></i>121–129</span>
           <span><i class="line-key" style="background: var(--z-warn)"></i>130–139</span>
           <span><i class="line-key" style="background: var(--z-high)"></i>140+</span></span></div>
       <div><span class="zone-name">Diastolic</span>
         <span class="zones">
-          <span><i class="line-key" style="background: var(--z-dia-ok)"></i>≤80</span>
+          <span><i class="line-key" style="background: var(--z-good)"></i>≤80</span>
           <span><i class="line-key" style="background: var(--z-warn)"></i>81–90</span>
           <span><i class="line-key" style="background: var(--z-high)"></i>91+</span></span></div>
     </div>
@@ -161,9 +162,9 @@
   // --- BP zones: [first value NOT in this zone, colour token, label].
   // Classified on the rounded value, i.e. the number the chart shows, so a
   // daily average of 90.6 (shown "91") is red, not yellow.
-  const SYS_ZONES = [[130, "--z-sys-ok", "normal"], [140, "--z-warn", "elevated"],
-                     [Infinity, "--z-high", "high"]];
-  const DIA_ZONES = [[81, "--z-dia-ok", "normal"], [91, "--z-warn", "elevated"],
+  const SYS_ZONES = [[121, "--z-good", "good"], [130, "--z-sys-ok", "normal"],
+                     [140, "--z-warn", "elevated"], [Infinity, "--z-high", "high"]];
+  const DIA_ZONES = [[81, "--z-good", "good"], [91, "--z-warn", "elevated"],
                      [Infinity, "--z-high", "high"]];
   const zoneOf = (v, zones) => zones.find((z) => Math.round(v) < z[0]);
   const zoneColor = (v, zones) => css(zoneOf(v, zones)[1]);
@@ -283,7 +284,7 @@
     const dense = sh.keys.length > 45;
     charts.bp = lineChart($("bp-chart"), sh, [
       dataset("Systolic", val("systolic"), css("--z-sys-ok"), dense, SYS_ZONES),
-      dataset("Diastolic", val("diastolic"), css("--z-dia-ok"), dense, DIA_ZONES),
+      dataset("Diastolic", val("diastolic"), css("--z-good"), dense, DIA_ZONES),
     ], 60, 150);
     const pulse = val("pulse");
     const hasPulse = pulse.some((v) => v != null);

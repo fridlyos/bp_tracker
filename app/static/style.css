@@ -282,8 +282,8 @@ dialog::backdrop { background: var(--backdrop); }
   --viz-axis: #cbd5e1;
   /* BP zone colours (each >= 3:1 on this surface; yellow deepened to amber
      because #fab219 is only 1.8:1 on white) */
-  --z-sys-ok: #2a78d6;
-  --z-dia-ok: #0ca30c;
+  --z-good: #0ca30c;    /* systolic <=120, diastolic <=80 */
+  --z-sys-ok: #2a78d6;  /* systolic 121-129 */
   --z-warn: #c98500;
   --z-high: #d03b3b;
   --s-pulse: #6250d6;
@@ -296,8 +296,8 @@ dialog::backdrop { background: var(--backdrop); }
   --viz-muted: #9db8cf;
   --viz-grid: #263f5a;
   --viz-axis: #3d5a78;
+  --z-good: #0ca30c;
   --z-sys-ok: #3987e5;
-  --z-dia-ok: #0ca30c;
   --z-warn: #fab219;
   --z-high: #e66767;
   --s-pulse: #9085e9;

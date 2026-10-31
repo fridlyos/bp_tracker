@@ -88,7 +88,7 @@ def test_trends_page():
     assert r.status_code == 200 and "bp-chart" in r.text and "chart.umd.min.js" in r.text
     assert TestClient(app).get("/trends", follow_redirects=False).headers["location"] == "/login"
     # zone legend + thresholds the chart colours by; no MAP line any more
-    for text in ("&lt;130", "130–139", "140+", "≤80", "81–90", "91+",
-                 "SYS_ZONES = [[130", "DIA_ZONES = [[81"):
+    for text in ("≤120", "121–129", "130–139", "140+", "≤80", "81–90", "91+",
+                 'SYS_ZONES = [[121, "--z-good"', 'DIA_ZONES = [[81, "--z-good"'):
         assert text in r.text, text
     assert "Mean" not in r.text

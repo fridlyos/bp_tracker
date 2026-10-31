@@ -19,8 +19,8 @@ Jinja2 UI, installable PWA, deployed on Fly.io. Setup mirrors `../lose_weight`.
   chart data). Same session cookie as the web UI; 401 when not logged in.
 - `app/templates/trends.html` — Chart.js 4.4.1 (cdnjs) page fed by
   `/api/stats`. BP and pulse are separate charts (never a dual axis). BP lines
-  are colour-coded by zone (owner's thresholds): systolic <130 blue, 130–139
-  yellow, 140+ red; diastolic ≤80 green, 81–90 yellow, 91+ red. Zones use the
+  are colour-coded by zone (owner's thresholds): systolic ≤120 green, 121–129
+  blue, 130–139 yellow, 140+ red; diastolic ≤80 green, 81–90 yellow, 91+ red. Zones use the
   rounded (displayed) value; the line colour is a vertical gradient with hard
   stops at x.5. Zone legend + tooltip label carry it in words too. Colours are
   `.viz-root` `--z-*` tokens, each ≥3:1 on the light surface `#fff` and the
