@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="viz-root">
+<div class="page-head">
+  <div>
+    <h1>Trends</h1>
+    <p class="page-subtitle" id="range-label">&nbsp;</p>
+  </div>
+</div>
+
+<div class="range-row">
+  <div class="range-tabs" role="group" aria-label="Time range">
+    <button type="button" data-range="day">Day</button>
+    <button type="button" data-range="week">Week</button>
+    <button type="button" data-range="month">Month</button>
+    <button type="button" data-range="3m">3 months</button>
+  </div>
+  <input type="date" id="day-picker" aria-label="Day" hidden>
+</div>
+
+<div class="stat-row" id="stats">
+  <div class="stat"><span class="stat-label">Average BP</span>
+    <span class="stat-value" id="stat-bp">–</span><span class="stat-unit">mmHg</span></div>
+  <div class="stat"><span class="stat-label">Average pulse</span>
+    <span class="stat-value" id="stat-pulse">–</span><span class="stat-unit">bpm</span></div>
+  <div class="stat"><span class="stat-label">Readings</span>
+    <span class="stat-value" id="stat-count">–</span></div>
+</div>
+
+<section class="panel" id="empty" hidden>
+  <p class="muted">No readings in this range. <a href="/">Add one</a>.</p>
+</section>
+
+<div id="charts">
+  <section class="panel chart-card">
+    <div class="chart-head">
+      <h2>Blood pressure <span class="muted">mmHg</span></h2>
+      <div class="chart-legend" aria-hidden="true">
+        <span><i class="line-key" style="background: var(--s-sys)"></i>Systolic</span>
+        <span><i class="line-key" style="background: var(--s-dia)"></i>Diastolic</span>
+      </div>
+    </div>
+    <div class="chart-box chart-box-tall"><canvas id="bp-chart" role="img"
+      aria-label="Blood pressure line chart, systolic and diastolic. Values are in the table below."></canvas></div>
+  </section>
+
+  <section class="panel chart-card" id="pulse-card">
+    <div class="chart-head"><h2>Pulse <span class="muted">bpm</span></h2></div>
+    <div class="chart-box"><canvas id="pulse-chart" role="img"
+      aria-label="Pulse line chart. Values are in the table below."></canvas></div>
+  </section>
+  <p class="muted chart-hint" id="chart-hint">Tap a day to see its readings.</p>
+
+  <section class="panel" id="day-detail" hidden>
+    <div class="section-head">
+      <h2 id="day-detail-title"></h2>
+      <a href="/history">History</a>
+    </div>
+    <ul class="entry-list reading-list" id="day-detail-list"></ul>
+  </section>
+
+  <details class="panel collapse">
+    <summary><h2>Table</h2></summary>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th id="col-x">Day</th><th>BP</th><th>Pulse</th><th>Count</th></tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </details>
+</div>
+</div>
+
+<script>
+(function () {
+  const viz = document.querySelector(".viz-root");
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(viz).getPropertyValue(name).trim();
+  const RANGE_TEXT = { day: "Readings on", week: "Daily averages, last 7 days",
+                       month: "Daily averages, last 30 days", "3m": "Daily averages, last 90 days" };
+  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+
+  let range = "week";
+  try { range = localStorage.getItem("trends-range") || "week"; } catch (e) {}
+  if (!(range in RANGE_TEXT)) range = "week";
+  let day = null;       // selected day for the Day range (YYYY-MM-DD), null = today
+  let last = null;      // last /api/stats payload, re-rendered on theme change
+  const charts = {};
+
+  // --- formatting
+  const parseDay = (iso) => { const [y, m, d] = iso.slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
+  const fmtDay = (iso) => parseDay(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const fmtLong = (iso) => parseDay(iso).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const r0 = (v) => (v == null ? "–" : String(Math.round(v)));
+
+  function daysBetween(start, end) {
+    const out = [];
+    const [y, m, d] = start.split("-").map(Number);
+    for (let t = Date.UTC(y, m - 1, d); ; t += 86400000) {
+      const iso = new Date(t).toISOString().slice(0, 10);
+      out.push(iso);
+      if (iso >= end) return out;
+    }
+  }
+
+  // Daily ranges get every calendar day on the x axis (gaps stay honest);
+  // the Day range plots each reading at its time.
+  function shape(data) {
+    if (data.range === "day") {
+      const p = data.points;
+      return { keys: p.map((x) => x.x), labels: p.map((x) => x.x.slice(11, 16)), byKey: p };
+    }
+    const map = Object.fromEntries(data.points.map((p) => [p.x, p]));
+    const keys = daysBetween(data.start, data.end);
+    return { keys, labels: keys.map(fmtDay), byKey: keys.map((k) => map[k] || null) };
+  }
+
+  // --- chart plugins
+  const crosshair = {
+    id: "crosshair",
+    afterDatasetsDraw(chart) {
+      const active = chart.tooltip && chart.tooltip.getActiveElements();
+      if (!active || !active.length) return;
+      const x = active[0].element.x, { top, bottom } = chart.chartArea, ctx = chart.ctx;
+      ctx.save(); ctx.strokeStyle = css("--viz-axis"); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.restore();
+    },
+  };
+  // value at the end of each line (selective direct label; text ink, not series color)
+  const endLabels = {
+    id: "endLabels",
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.fillStyle = css("--viz-text-2"); ctx.textBaseline = "middle";
+      chart.data.datasets.forEach((ds, i) => {
+        for (let j = ds.data.length - 1; j >= 0; j--) {
+          if (ds.data[j] == null) continue;
+          const pt = chart.getDatasetMeta(i).data[j];
+          ctx.fillText(r0(ds.data[j]), pt.x + 8, pt.y);
+          break;
+        }
+      });
+      ctx.restore();
+    },
+  };
+
+  function dataset(label, values, color, dense) {
+    return {
+      label, data: values, borderColor: color, backgroundColor: color,
+      borderWidth: 2, borderJoinStyle: "round", borderCapStyle: "round", tension: 0,
+      pointRadius: dense ? 0 : 4, pointHoverRadius: 6, pointHitRadius: 12,
+      pointBorderColor: css("--viz-surface"), pointBorderWidth: 2, pointHoverBorderWidth: 2,
+    };
+  }
+
+  function lineChart(canvas, shaped, datasets, yMin, yMax) {
+    const isDay = range === "day";
+    return new Chart(canvas, {
+      type: "line",
+      data: { labels: shaped.labels, datasets },
+      plugins: [crosshair, endLabels],
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false, spanGaps: true,
+        layout: { padding: { right: 32, top: 8 } },
+        interaction: { mode: "index", intersect: false },
+        onClick(evt, _els, chart) {
+          if (isDay) return;
+          const hit = chart.getElementsAtEventForMode(evt, "index", { intersect: false }, false);
+          if (hit.length && shaped.byKey[hit[0].index]) openDay(shaped.keys[hit[0].index]);
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: css("--viz-tooltip"), borderColor: css("--viz-axis"), borderWidth: 1,
+            titleColor: css("--viz-text-2"), bodyColor: css("--viz-text-1"),
+            titleFont: { weight: "500" }, bodyFont: { weight: "600" },
+            padding: 10, usePointStyle: true, boxWidth: 14, boxHeight: 2,
+            callbacks: {
+              title(items) {
+                const p = shaped.byKey[items[0].dataIndex];
+                if (isDay) return shaped.labels[items[0].dataIndex];
+                const n = p ? p.count : 0;
+                return `${fmtDay(shaped.keys[items[0].dataIndex])} · ${n} reading${n === 1 ? "" : "s"}`;
+              },
+              label: (c) => ` ${r0(c.parsed.y)}  ${c.dataset.label}`,
+              labelPointStyle: () => ({ pointStyle: "line", rotation: 0 }),
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false }, border: { color: css("--viz-axis") },
+            ticks: { color: css("--viz-muted"), maxRotation: 0, autoSkip: true, maxTicksLimit: 7 },
+          },
+          y: {
+            suggestedMin: yMin, suggestedMax: yMax,
+            grid: { color: css("--viz-grid") }, border: { display: false },
+            ticks: { color: css("--viz-muted"), maxTicksLimit: 6 },
+          },
+        },
+      },
+    });
+  }
+
+  // --- render
+  function render(data) {
+    last = data;
+    Object.values(charts).forEach((c) => c.destroy());
+    const s = data.summary;
+    $("range-label").textContent = range === "day" ? `${RANGE_TEXT.day} ${fmtLong(data.start)}`
+      : `${RANGE_TEXT[range]} (${fmtDay(data.start)} – ${fmtDay(data.end)})`;
+    $("stat-bp").textContent = s.count ? `${r0(s.systolic)}/${r0(s.diastolic)}` : "–";
+    $("stat-pulse").textContent = r0(s.pulse);
+    $("stat-count").textContent = String(s.count);
+    $("empty").hidden = s.count > 0;
+    $("charts").hidden = s.count === 0;
+    $("chart-hint").hidden = range === "day";
+    $("day-detail").hidden = true;
+    if (!s.count) return;
+
+    const sh = shape(data);
+    const val = (k) => sh.byKey.map((p) => (p ? p[k] : null));
+    const dense = sh.keys.length > 45;
+    charts.bp = lineChart($("bp-chart"), sh, [
+      dataset("Systolic", val("systolic"), css("--s-sys"), dense),
+      dataset("Diastolic", val("diastolic"), css("--s-dia"), dense),
+    ], 60, 150);
+    const pulse = val("pulse");
+    const hasPulse = pulse.some((v) => v != null);
+    $("pulse-card").hidden = !hasPulse;
+    if (hasPulse) charts.pulse = lineChart($("pulse-chart"), sh,
+      [dataset("Pulse", pulse, css("--s-pulse"), dense)], 50, 100);
+
+    // table view: every plotted value, newest first (text via textContent)
+    $("col-x").textContent = range === "day" ? "Time" : "Day";
+    const body = $("table-body");
+    body.replaceChildren();
+    data.points.slice().reverse().forEach((p) => {
+      const tr = document.createElement("tr");
+      const th = document.createElement("td");
+      if (range === "day") th.textContent = p.x.slice(11, 16);
+      else {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "link-button"; b.textContent = fmtDay(p.x);
+        b.addEventListener("click", () => openDay(p.x));
+        th.appendChild(b);
+      }
+      tr.appendChild(th);
+      [`${r0(p.systolic)}/${r0(p.diastolic)}`, r0(p.pulse), String(p.count)].forEach((t) => {
+        const td = document.createElement("td"); td.textContent = t; tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  async function openDay(iso) {
+    const res = await fetch(`/api/readings?from=${iso}&to=${iso}`);
+    if (!res.ok) return;
+    const items = (await res.json()).reverse();
+    $("day-detail-title").textContent = fmtLong(iso);
+    const ul = $("day-detail-list");
+    ul.replaceChildren();
+    items.forEach((r) => {
+      const li = document.createElement("li");
+      const main = document.createElement("span"); main.className = "entry-main";
+      const v = document.createElement("span"); v.className = "entry-name bp-value";
+      v.textContent = `${r.systolic}/${r.diastolic}`;
+      if (r.pulse != null) {
+        const pu = document.createElement("span"); pu.className = "pulse"; pu.textContent = `♥ ${r.pulse}`;
+        v.append(" ", pu);
+      }
+      const meta = document.createElement("span"); meta.className = "entry-meta";
+      meta.textContent = r.taken_at.slice(11, 16) + (r.note ? ` · ${r.note}` : "");
+      main.append(v, meta); li.appendChild(main); ul.appendChild(li);
+    });
+    $("day-detail").hidden = false;
+    $("day-detail").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  async function load() {
+    document.querySelectorAll("[data-range]").forEach((b) => {
+      const on = b.dataset.range === range;
+      b.setAttribute("aria-pressed", String(on));
+      b.classList.toggle("secondary", !on);
+    });
+    $("day-picker").hidden = range !== "day";
+    const q = new URLSearchParams({ range });
+    if (range === "day" && day) q.set("date", day);
+    $("charts").classList.add("loading");   // keep the old frame while refetching
+    const res = await fetch(`/api/stats?${q}`);
+    $("charts").classList.remove("loading");
+    if (res.status === 401) { location.href = "/login"; return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    if (range === "day") $("day-picker").value = data.start;
+    render(data);
+  }
+
+  document.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => {
+    range = b.dataset.range;
+    try { localStorage.setItem("trends-range", range); } catch (e) {}
+    load();
+  }));
+  $("day-picker").addEventListener("change", (e) => { day = e.target.value || null; load(); });
+  // theme toggle -> rebuild charts with the other mode's tokens
+  new MutationObserver(() => last && render(last))
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  load();
+})();
+</script>
+{% endblock %}

@@ -135,3 +135,60 @@ def purge_before(conn, user_id: int, before: date, dry_run: bool = False) -> int
     conn.commit()
     logger.info("user %s purged %d reading(s) before %s", user_id, cur.rowcount, before)
     return cur.rowcount
+
+
+# --- stats
+
+RANGE_DAYS = {"week": 7, "month": 30, "3m": 90}
+
+
+def daily_averages(conn, user_id: int, start: date, end: date) -> list[dict]:
+    """Per-day averages in [start, end] (inclusive), oldest first. Days without
+    readings are omitted. Pulse averages only readings that have a pulse."""
+    rows = conn.execute(
+        "SELECT substr(taken_at, 1, 10) AS day,"
+        " AVG(systolic) AS systolic, AVG(diastolic) AS diastolic,"
+        " AVG(pulse) AS pulse, COUNT(*) AS count"
+        " FROM readings WHERE user_id = ? AND taken_at >= ? AND taken_at < ?"
+        " GROUP BY day ORDER BY day",
+        (user_id, start.isoformat(), (end + timedelta(days=1)).isoformat()),
+    )
+    return [{"x": r["day"], "systolic": _r1(r["systolic"]), "diastolic": _r1(r["diastolic"]),
+             "pulse": _r1(r["pulse"]), "count": r["count"]} for r in rows]
+
+
+def _r1(v):
+    return None if v is None else round(v, 1)
+
+
+def _summary(conn, user_id: int, start: date, end: date) -> dict:
+    r = conn.execute(
+        "SELECT AVG(systolic) AS systolic, AVG(diastolic) AS diastolic,"
+        " AVG(pulse) AS pulse, COUNT(*) AS count"
+        " FROM readings WHERE user_id = ? AND taken_at >= ? AND taken_at < ?",
+        (user_id, start.isoformat(), (end + timedelta(days=1)).isoformat()),
+    ).fetchone()
+    return {"systolic": _r1(r["systolic"]), "diastolic": _r1(r["diastolic"]),
+            "pulse": _r1(r["pulse"]), "count": r["count"]}
+
+
+def stats(conn, user_id: int, range_: str, today: date, day: date | None = None) -> dict:
+    """Chart data.
+
+    day          -> individual readings of `day` (default today), oldest first;
+                    each point's x is the full 'YYYY-MM-DDTHH:MM'.
+    week/month/3m-> daily averages over the last 7/30/90 days ending today;
+                    x is 'YYYY-MM-DD'.
+    """
+    if range_ == "day":
+        start = end = day or today
+        points = [{"x": r.taken_at, "systolic": r.systolic, "diastolic": r.diastolic,
+                   "pulse": r.pulse, "count": 1}
+                  for r in reversed(list_readings(conn, user_id, start, end))]
+    elif range_ in RANGE_DAYS:
+        end, start = today, today - timedelta(days=RANGE_DAYS[range_] - 1)
+        points = daily_averages(conn, user_id, start, end)
+    else:
+        raise ValueError(f"unknown range {range_!r}")
+    return {"range": range_, "start": start.isoformat(), "end": end.isoformat(),
+            "points": points, "summary": _summary(conn, user_id, start, end)}

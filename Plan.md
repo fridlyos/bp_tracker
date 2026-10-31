@@ -57,7 +57,10 @@ Every query filters by acting `user_id`.
   `DELETE /api/readings/{id}`, `POST /api/readings/purge`.
 - Tests: CRUD, validation, user isolation, purge boundary.
 
-### Phase 3 — Averages + charts
+### Phase 3 — Averages + charts (done)
+Built as two charts, not one: BP (sys + dia, mmHg) and pulse (bpm). Different
+units on one axis would mislead (no dual axes). 3m stays daily for now. The
+normal band is still open.
 - `service.daily_averages(user, from, to)` — one SQL `GROUP BY date(taken_at)`
   returning avg sys/dia/pulse + count.
 - `GET /api/stats?range=day|week|month|3m`:

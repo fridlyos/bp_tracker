@@ -113,6 +113,14 @@ def history(request: Request, conn=Depends(db.get_db),
                    {"days": service.readings_by_day(conn, user.id)})
 
 
+@router.get("/trends")
+def trends(request: Request, user: User | None = Depends(current_user)):
+    """Charts page. Data comes from /api/stats; the page is a static shell."""
+    if user is None:
+        return _to("/login")
+    return _render(request, "trends.html", user, {})
+
+
 # --- settings (purge old data)
 
 @router.get("/settings")

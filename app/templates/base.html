@@ -24,6 +24,7 @@
     if ("serviceWorker" in navigator)
       addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
   </script>
+{% block head %}{% endblock %}
 </head>
 <body>
   <div class="layout">
@@ -36,6 +37,7 @@
           <a href="/users-ui"{% if path.startswith("/users") %} class="active"{% endif %}>Users</a>
         {% elif user %}
           <a href="/"{% if path == "/" %} class="active"{% endif %}>Today</a>
+          <a href="/trends"{% if path.startswith("/trends") %} class="active"{% endif %}>Trends</a>
           <a href="/history"{% if path.startswith("/history") %} class="active"{% endif %}>History</a>
           <a href="/settings"{% if path.startswith("/settings") %} class="active"{% endif %}>Settings</a>
         {% endif %}

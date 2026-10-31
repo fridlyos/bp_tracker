@@ -4,6 +4,7 @@ Times are the user's local wall-clock time. A timezone-aware `taken_at` is
 converted to the user's zone (browser `tz` cookie); naive is stored as given.
 """
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
@@ -47,3 +48,12 @@ def purge(p: PurgeIn, uid: int = Depends(api_user), conn=Depends(db.get_db)):
     """Delete readings taken before `before`. dry_run=true only counts them."""
     n = service.purge_before(conn, uid, p.before, dry_run=p.dry_run)
     return {"before": p.before, "count": n, "deleted": not p.dry_run}
+
+
+@router.get("/stats")
+def stats(request: Request, range_: Literal["day", "week", "month", "3m"] = Query("week", alias="range"),
+          day: date | None = Query(None, alias="date"),
+          uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    """Chart data. day -> that day's readings (?date=, default today);
+    week/month/3m -> daily averages over the last 7/30/90 days."""
+    return service.stats(conn, uid, range_, clock.local_today(request), day)

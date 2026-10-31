@@ -13,8 +13,13 @@ Jinja2 UI, installable PWA, deployed on Fly.io. Setup mirrors `../lose_weight`.
   middleware, static mount, root-scoped `/sw.js`, catch-all error logger.
 - `app/web.py` — HTML routes. Acting user comes from the signed session cookie
   (`request.session["uid"]`). Anonymous -> `/login`; admin -> `/users-ui`.
-- `app/api.py` — JSON API under `/api` (readings CRUD + purge). Same session
-  cookie as the web UI; 401 when not logged in.
+- `app/api.py` — JSON API under `/api` (readings CRUD + purge, `/api/stats`
+  chart data). Same session cookie as the web UI; 401 when not logged in.
+- `app/templates/trends.html` — Chart.js 4.4.1 (cdnjs) page fed by
+  `/api/stats`. BP and pulse are separate charts (never a dual axis). Chart
+  colors are `.viz-root` tokens in `style.css`, validated for contrast and
+  colorblind separation against the light surface `#fff` and the dark chart
+  panel `#1b3149`. Re-validate the palette if those surfaces change.
 - `app/clock.py` — user-local time. Readings are naive local datetimes
   (`YYYY-MM-DDTHH:MM`); "now"/"today" use the browser zone from the `tz`
   cookie set in `base.html` (fallback UTC, server runs UTC on Fly).
@@ -33,7 +38,8 @@ Jinja2 UI, installable PWA, deployed on Fly.io. Setup mirrors `../lose_weight`.
   systolic > diastolic, pulse 30–220. Web and API both go through it.
 - Confirm prompts: `<form data-confirm="...">` (handler in `base.html`); never
   interpolate user text into inline JS.
-- No build step; Chart.js from CDN when charts land.
+- No build step; Chart.js from CDN, pinned version.
+- Text from user data goes into the DOM via `textContent`, never `innerHTML`.
 
 ## Commands
 
