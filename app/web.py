@@ -148,9 +148,9 @@ def settings_purge(before: date = Form(...), conn=Depends(db.get_db),
 
 @router.get("/register")
 def register_form(request: Request, user: User | None = Depends(current_user)):
-    if user is not None:
-        return _to("/")
-    return _render(request, "register.html", None, {"error": None})
+    """Signup form. A logged-in visitor (e.g. admin) is told so and offered
+    Log out, instead of being bounced back to their home page with no hint."""
+    return _render(request, "register.html", user, {"error": None})
 
 
 @router.post("/register")
@@ -198,6 +198,21 @@ def users_page(request: Request, conn=Depends(db.get_db),
     if not user.is_admin:
         return _to("/")
     return _render(request, "users.html", user, {"users": service.list_users(conn)})
+
+
+@router.post("/users/new")
+def users_create(request: Request, username: str = Form(...), password: str = Form(...),
+                 conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """Admin-only: create a regular account. The admin stays logged in."""
+    if user is None or not user.is_admin:
+        return _to("/login")
+    try:
+        service.register_user(conn, username.strip(), password)
+    except ValueError:
+        return _render(request, "users.html", user, {
+            "users": service.list_users(conn), "create_error": "That username is taken.",
+            "create_username": username})
+    return _to("/users-ui")
 
 
 @router.post("/users/{user_id}/delete")

@@ -8,6 +8,14 @@
 </div>
 
 <section class="panel">
+  {% if user %}
+  <p>You're logged in as <b>{{ user.username }}</b>{% if user.is_admin %} (admin){% endif %}.
+     Log out first to register a new account{% if user.is_admin %}, or create one from the
+     <a href="/users-ui">Users</a> page{% endif %}.</p>
+  <form method="post" action="/logout" class="inline">
+    <button type="submit">Log out</button>
+  </form>
+  {% else %}
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   <form method="post" action="/register">
     <label>Username <input name="username" autocomplete="username" required autofocus></label>
@@ -17,5 +25,6 @@
     </div>
   </form>
   <p class="muted">Already have an account? <a href="/login">Log in</a>.</p>
+  {% endif %}
 </section>
 {% endblock %}

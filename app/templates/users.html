@@ -8,6 +8,20 @@
 </div>
 
 <section class="panel">
+  <h2>Create user</h2>
+  <p class="muted">Admin only manages accounts. To log readings, create a regular user
+     here (or log out and register), then log in as that user.</p>
+  {% if create_error %}<p class="error">{{ create_error }}</p>{% endif %}
+  <form method="post" action="/users/new">
+    <label>Username <input name="username" autocomplete="off" required value="{{ create_username or '' }}"></label>
+    <label>Password <input type="password" name="password" autocomplete="new-password" required></label>
+    <div class="dialog-actions">
+      <button type="submit">Create user</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
   <div class="section-head">
     <h2>Accounts <span class="muted">({{ users|length }})</span></h2>
   </div>
