@@ -36,7 +36,7 @@ Every query filters by acting `user_id`.
 ### Phase 0 — Scaffold (done in this commit)
 - Rename `pb_tracker` → `bp_tracker`, `git init`, Plan.md, .gitignore.
 
-### Phase 1 — Skeleton from lose_weight
+### Phase 1 — Skeleton from lose_weight (done)
 - `pyproject.toml` (fastapi, uvicorn, jinja2, python-multipart, itsdangerous,
   yoyo-migrations; dev: pytest). Drop openai/tavily/httpx.
 - Copy and trim: `app/db.py` (env `BP_DB`, default `bp.db`), `app/auth.py`,

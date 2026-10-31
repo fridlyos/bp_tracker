@@ -1,0 +1,31 @@
+{
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "ponytail@ponytail": true
+  },
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "juliusbrussee/caveman"
+      }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "dietrichgebert/ponytail"
+      }
+    }
+  },
+  "permissions": {
+    "allow": [
+      "Bash"
+    ],
+    "ask": [
+      "Bash(fly *)",
+      "Bash(flyctl *)",
+      "Bash(*flyctl*)",
+      "Bash(*.fly/bin/*)"
+    ]
+  }
+}

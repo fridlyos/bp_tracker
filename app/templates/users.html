@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Users</h1>
+    <p class="page-subtitle">Admin console — manage registered accounts.</p>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="section-head">
+    <h2>Accounts <span class="muted">({{ users|length }})</span></h2>
+  </div>
+<div class="stack">
+  {% for u in users %}
+  <div class="profile-row">
+    <div class="profile-main">
+      <b>@{{ u.username }}</b>
+      <span class="food-meta">{% if u.is_admin %}admin · {% endif %}since {{ (u.created_at or '')[:10] }}</span>
+    </div>
+    <button type="button" class="compact secondary" data-dialog-open="reset-{{ u.id }}">Reset password</button>
+    {% if u.is_admin %}
+      <span class="tag">admin</span>
+    {% else %}
+      <form method="post" action="/users/{{ u.id }}/delete" class="inline"
+            onsubmit="return confirm('Delete {{ u.username }} and all their readings?')">
+        <button type="submit" class="compact danger">Delete</button>
+      </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+</section>
+
+{% for u in users %}
+<dialog id="reset-{{ u.id }}">
+  <div class="dialog-head">
+    <h2>Reset password — {{ u.username }}</h2>
+    <button type="button" class="icon-button" aria-label="Close" data-dialog-close>&times;</button>
+  </div>
+  <form method="post" action="/users/{{ u.id }}/reset">
+    <label>New password <input type="password" name="password" autocomplete="new-password" required></label>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" data-dialog-close>Cancel</button>
+      <button type="submit">Set password</button>
+    </div>
+  </form>
+</dialog>
+{% endfor %}
+
+<script>
+  document.querySelectorAll('[data-dialog-open]').forEach(button => {
+    button.addEventListener('click', () => {
+      document.getElementById(button.dataset.dialogOpen).showModal();
+    });
+  });
+  document.querySelectorAll('[data-dialog-close]').forEach(button => {
+    button.addEventListener('click', () => button.closest('dialog').close());
+  });
+</script>
+{% endblock %}

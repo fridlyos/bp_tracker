@@ -1,0 +1,17 @@
+.git
+.pytest_cache
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.pid
+bp.db
+start.log
+start.pid
+.env
+.claude
+.codex
+tests
+
