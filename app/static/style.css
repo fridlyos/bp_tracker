@@ -280,10 +280,13 @@ dialog::backdrop { background: var(--backdrop); }
   --viz-muted: #64748b;
   --viz-grid: #eef2f6;
   --viz-axis: #cbd5e1;
-  --s-sys: #2a78d6;
-  --s-map: #1baf7a;   /* sys · map · dia validated as an adjacent set */
-  --s-dia: #eb6834;
-  --s-pulse: #6250d6; /* own chart; violet so no hue is shared with BP */
+  /* BP zone colours (each >= 3:1 on this surface; yellow deepened to amber
+     because #fab219 is only 1.8:1 on white) */
+  --z-sys-ok: #2a78d6;
+  --z-dia-ok: #0ca30c;
+  --z-warn: #c98500;
+  --z-high: #d03b3b;
+  --s-pulse: #6250d6;
 }
 :root[data-theme="dark"] .viz-root {
   --viz-surface: #1b3149;
@@ -293,9 +296,10 @@ dialog::backdrop { background: var(--backdrop); }
   --viz-muted: #9db8cf;
   --viz-grid: #263f5a;
   --viz-axis: #3d5a78;
-  --s-sys: #3987e5;
-  --s-map: #199e70;
-  --s-dia: #d95926;
+  --z-sys-ok: #3987e5;
+  --z-dia-ok: #0ca30c;
+  --z-warn: #fab219;
+  --z-high: #e66767;
   --s-pulse: #9085e9;
 }
 .range-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: 1rem; }
@@ -319,8 +323,15 @@ dialog::backdrop { background: var(--backdrop); }
 .chart-box { position: relative; height: 170px; }
 .chart-box-tall { height: 260px; }
 .chart-hint { font-size: .82rem; margin: -.4rem 0 1rem; }
-.chart-note { margin: .4rem 0 .1rem; font-size: .75rem; color: var(--viz-muted); }
 .chart-legend { flex-wrap: wrap; }
+/* one grid for both rows so the name column is as wide as its longest label */
+.zone-legend { display: grid; grid-template-columns: max-content 1fr; align-items: baseline;
+  gap: .3rem .7rem; margin: 0 0 .5rem; font-size: .8rem; color: var(--viz-text-2); }
+.zone-legend > div { display: contents; }
+.zone-legend .zones { display: flex; flex-wrap: wrap; gap: .2rem .75rem; }
+.zone-legend .zones span { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
+.zone-legend .zone-name { font-weight: 600; color: var(--viz-text-1); }
+.zone-legend .line-key { width: 16px; height: 3px; }
 #charts { transition: opacity .15s; }
 #charts.loading { opacity: .55; }
 @media (max-width: 640px) {

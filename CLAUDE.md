@@ -18,10 +18,13 @@ Jinja2 UI, installable PWA, deployed on Fly.io. Setup mirrors `../lose_weight`.
 - `app/api.py` — JSON API under `/api` (readings CRUD + purge, `/api/stats`
   chart data). Same session cookie as the web UI; 401 when not logged in.
 - `app/templates/trends.html` — Chart.js 4.4.1 (cdnjs) page fed by
-  `/api/stats`. BP and pulse are separate charts (never a dual axis). Chart
-  colors are `.viz-root` tokens in `style.css`, validated for contrast and
-  colorblind separation against the light surface `#fff` and the dark chart
-  panel `#1b3149`. Re-validate the palette if those surfaces change.
+  `/api/stats`. BP and pulse are separate charts (never a dual axis). BP lines
+  are colour-coded by zone (owner's thresholds): systolic <130 blue, 130–139
+  yellow, 140+ red; diastolic ≤80 green, 81–90 yellow, 91+ red. Zones use the
+  rounded (displayed) value; the line colour is a vertical gradient with hard
+  stops at x.5. Zone legend + tooltip label carry it in words too. Colours are
+  `.viz-root` `--z-*` tokens, each ≥3:1 on the light surface `#fff` and the
+  dark chart panel `#1b3149` (light yellow is amber `#c98500` for contrast).
 - `app/clock.py` — user-local time. Readings are naive local datetimes
   (`YYYY-MM-DDTHH:MM`); "now"/"today" use the browser zone from the `tz`
   cookie set in `base.html` (fallback UTC, server runs UTC on Fly).
