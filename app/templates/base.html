@@ -14,6 +14,13 @@
     document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
   </script>
   <script>
+    // server stores local wall-clock times; tell it which zone "now"/"today" are in
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) document.cookie = "tz=" + encodeURIComponent(tz) + ";path=/;max-age=31536000;samesite=lax";
+    } catch (e) {}
+  </script>
+  <script>
     if ("serviceWorker" in navigator)
       addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
   </script>
@@ -29,6 +36,8 @@
           <a href="/users-ui"{% if path.startswith("/users") %} class="active"{% endif %}>Users</a>
         {% elif user %}
           <a href="/"{% if path == "/" %} class="active"{% endif %}>Today</a>
+          <a href="/history"{% if path.startswith("/history") %} class="active"{% endif %}>History</a>
+          <a href="/settings"{% if path.startswith("/settings") %} class="active"{% endif %}>Settings</a>
         {% endif %}
       </nav>
       {% if user %}
@@ -43,6 +52,11 @@
     </main>
   </div>
 
+  <script>
+    // <form data-confirm="..."> asks before submitting (text via dataset, never inline JS)
+    document.querySelectorAll("form[data-confirm]").forEach(f =>
+      f.addEventListener("submit", e => { if (!confirm(f.dataset.confirm)) e.preventDefault(); }));
+  </script>
   <script>
     (function () {
       const root = document.documentElement;

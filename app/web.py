@@ -3,14 +3,16 @@
 Auth: the logged-in user id lives in a signed session cookie (SessionMiddleware).
 Anonymous visitors are redirected to /login. Admin-only pages check is_admin.
 """
+from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 
-from . import db, service
-from .schemas import User
+from . import clock, db, service
+from .schemas import ReadingIn, User
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 router = APIRouter()
@@ -29,14 +31,109 @@ def _to(path):
     return RedirectResponse(path, status_code=303)
 
 
+def _safe_next(path: str | None) -> str:
+    # only same-site relative paths, never //host or absolute URLs
+    return path if path and path.startswith("/") and not path.startswith("//") else "/"
+
+
+_FIELD_LABELS = {"systolic": "Systolic", "diastolic": "Diastolic", "pulse": "Pulse",
+                 "note": "Note", "taken_at": "Time"}
+
+
+def _error_text(e: ValidationError) -> str:
+    msgs = []
+    for err in e.errors():
+        msg = err["msg"].removeprefix("Value error, ")
+        field = _FIELD_LABELS.get(err["loc"][0], "") if err["loc"] else ""
+        msgs.append(f"{field}: {msg}" if field else msg[:1].upper() + msg[1:])
+    return "; ".join(msgs)
+
+
+def _home_ctx(request, conn, user, form=None, error=None):
+    today = clock.local_today(request)
+    return {
+        "today": today,
+        "readings": service.list_readings(conn, user.id, today, today),
+        "now": clock.local_now(request).strftime("%Y-%m-%dT%H:%M"),
+        "form": form or {}, "error": error,
+    }
+
+
 @router.get("/")
-def home(request: Request, user: User | None = Depends(current_user)):
-    """Home. Anonymous -> /login; admins -> /users-ui (they manage, don't log)."""
+def home(request: Request, conn=Depends(db.get_db),
+         user: User | None = Depends(current_user)):
+    """Quick-add form + today's readings. Anonymous -> /login; admins -> /users-ui."""
     if user is None:
         return _to("/login")
     if user.is_admin:
         return _to("/users-ui")
-    return _render(request, "home.html", user, {})
+    return _render(request, "home.html", user, _home_ctx(request, conn, user))
+
+
+# --- readings
+
+@router.post("/readings")
+def reading_add(request: Request, taken_at: str = Form(""), systolic: str = Form(""),
+                diastolic: str = Form(""), pulse: str = Form(""), note: str = Form(""),
+                conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """Add a reading from the home form. Invalid input re-renders home with the error."""
+    if user is None:
+        return _to("/login")
+    form = {"taken_at": taken_at, "systolic": systolic, "diastolic": diastolic,
+            "pulse": pulse, "note": note}
+    try:
+        r = ReadingIn(taken_at=taken_at or None, systolic=systolic, diastolic=diastolic,
+                      pulse=pulse or None, note=note or None)
+    except ValidationError as e:
+        resp = _render(request, "home.html", user,
+                       _home_ctx(request, conn, user, form, _error_text(e)))
+        resp.status_code = 422
+        return resp
+    r.taken_at = clock.to_local_naive(r.taken_at, request)
+    service.add_reading(conn, user.id, r)
+    return _to("/")
+
+
+@router.post("/readings/{reading_id}/delete")
+def reading_delete(reading_id: int, next_: str | None = Form(None, alias="next"),
+                   conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return _to("/login")
+    service.delete_reading(conn, user.id, reading_id)
+    return _to(_safe_next(next_))
+
+
+@router.get("/history")
+def history(request: Request, conn=Depends(db.get_db),
+            user: User | None = Depends(current_user)):
+    """All readings grouped by day, newest first."""
+    if user is None:
+        return _to("/login")
+    return _render(request, "history.html", user,
+                   {"days": service.readings_by_day(conn, user.id)})
+
+
+# --- settings (purge old data)
+
+@router.get("/settings")
+def settings(request: Request, before: date | None = Query(None),
+             purged: int | None = Query(None),
+             conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """Purge form. With ?before= shows how many readings would go (preview)."""
+    if user is None:
+        return _to("/login")
+    count = service.purge_before(conn, user.id, before, dry_run=True) if before else None
+    return _render(request, "settings.html", user,
+                   {"before": before, "count": count, "purged": purged})
+
+
+@router.post("/settings/purge")
+def settings_purge(before: date = Form(...), conn=Depends(db.get_db),
+                   user: User | None = Depends(current_user)):
+    if user is None:
+        return _to("/login")
+    n = service.purge_before(conn, user.id, before)
+    return _to(f"/settings?purged={n}")
 
 
 # --- auth (register / login / logout)

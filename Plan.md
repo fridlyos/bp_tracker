@@ -46,7 +46,7 @@ Every query filters by acting `user_id`.
 - CLAUDE.md, README.md.
 - Test: register → login → home renders.
 
-### Phase 2 — Readings CRUD
+### Phase 2 — Readings CRUD (done)
 - `service.py`: `add_reading`, `list_readings(from, to)`, `delete_reading`,
   `purge_before(date)`.
 - Web: home = quick-add form (sys / dia / pulse / note, `taken_at` defaults to

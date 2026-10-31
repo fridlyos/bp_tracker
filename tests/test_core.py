@@ -25,7 +25,7 @@ def test_register_login_home():
     c = _client()
     r = c.post("/register", data={"username": "alice", "password": "pw"}, follow_redirects=False)
     assert r.status_code == 303
-    assert "Blood pressure log for alice" in c.get("/").text
+    assert "Add reading" in c.get("/").text
 
     c.post("/logout")
     assert c.get("/", follow_redirects=False).headers["location"] == "/login"
@@ -34,7 +34,7 @@ def test_register_login_home():
     assert "Wrong username or password" in bad.text
 
     c.post("/login", data={"username": "alice", "password": "pw"})
-    assert "Blood pressure log for alice" in c.get("/").text
+    assert "Add reading" in c.get("/").text
 
 
 def test_duplicate_username_rejected():

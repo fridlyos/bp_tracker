@@ -197,3 +197,11 @@ dialog::backdrop { background: var(--backdrop); }
   .page-head { align-items: stretch; flex-direction: column; }
 }
 
+
+/* --- bp tracker */
+.bp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+.bp-grid input { width: 100%; box-sizing: border-box; }
+.bp-value { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.pulse { font-weight: 500; font-size: .9rem; color: var(--muted); margin-left: .35rem; }
+.reading-list li { grid-template-columns: minmax(0, 1fr) auto; }
+.reading-list form.inline { margin: 0; }

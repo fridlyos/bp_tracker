@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>History</h1>
+    <p class="page-subtitle">All readings, grouped by day.</p>
+  </div>
+</div>
+
+{% for day, items in days %}
+<section class="panel">
+  <div class="section-head">
+    <h2>{{ day }} <span class="muted">({{ items|length }})</span></h2>
+  </div>
+  {% with next="/history" %}{% include "_reading_list.html" %}{% endwith %}
+</section>
+{% else %}
+<section class="panel"><p class="muted">No readings yet. <a href="/">Add one</a>.</p></section>
+{% endfor %}
+{% endblock %}

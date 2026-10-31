@@ -23,7 +23,7 @@
       <span class="tag">admin</span>
     {% else %}
       <form method="post" action="/users/{{ u.id }}/delete" class="inline"
-            onsubmit="return confirm('Delete {{ u.username }} and all their readings?')">
+            data-confirm="Delete {{ u.username }} and all their readings?">
         <button type="submit" class="compact danger">Delete</button>
       </form>
     {% endif %}

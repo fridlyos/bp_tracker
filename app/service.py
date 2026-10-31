@@ -5,9 +5,10 @@ the acting user's id and must filter by it.
 """
 import logging
 import sqlite3
+from datetime import date, datetime, timedelta
 
 from . import auth
-from .schemas import User
+from .schemas import Reading, ReadingIn, User
 
 logger = logging.getLogger("bp_tracker.service")
 
@@ -61,3 +62,76 @@ def delete_user(conn, user_id: int) -> None:
     """Admin action: remove a non-admin user; readings cascade."""
     conn.execute("DELETE FROM users WHERE id = ? AND is_admin = 0", (user_id,))
     conn.commit()
+
+
+# --- readings
+# taken_at is stored as naive local ISO text at minute precision, so string
+# comparison == chronological order and the (user_id, taken_at) index serves
+# every range query.
+
+def _iso(dt: datetime) -> str:
+    return dt.replace(second=0, microsecond=0).isoformat(timespec="minutes")
+
+
+def _reading(row) -> Reading:
+    return Reading(**{k: row[k] for k in row.keys() if k != "user_id"})
+
+
+def add_reading(conn, user_id: int, r: ReadingIn) -> Reading:
+    """Insert one reading. r.taken_at must already be a naive local datetime."""
+    if r.taken_at is None:
+        raise ValueError("taken_at required")
+    cur = conn.execute(
+        "INSERT INTO readings (user_id, taken_at, systolic, diastolic, pulse, note)"
+        " VALUES (?,?,?,?,?,?)",
+        (user_id, _iso(r.taken_at), r.systolic, r.diastolic, r.pulse, r.note),
+    )
+    conn.commit()
+    return get_reading(conn, user_id, cur.lastrowid)
+
+
+def get_reading(conn, user_id: int, reading_id: int) -> Reading | None:
+    row = conn.execute("SELECT * FROM readings WHERE id = ? AND user_id = ?",
+                       (reading_id, user_id)).fetchone()
+    return _reading(row) if row else None
+
+
+def list_readings(conn, user_id: int, start: date | None = None,
+                  end: date | None = None) -> list[Reading]:
+    """Readings in [start, end] (whole days, both inclusive), newest first."""
+    sql, args = "SELECT * FROM readings WHERE user_id = ?", [user_id]
+    if start is not None:
+        sql += " AND taken_at >= ?"
+        args.append(start.isoformat())
+    if end is not None:
+        sql += " AND taken_at < ?"
+        args.append((end + timedelta(days=1)).isoformat())
+    sql += " ORDER BY taken_at DESC, id DESC"
+    return [_reading(r) for r in conn.execute(sql, args)]
+
+
+def readings_by_day(conn, user_id: int) -> list[tuple[str, list[Reading]]]:
+    """All readings grouped by day ('YYYY-MM-DD'), newest day first."""
+    groups: dict[str, list[Reading]] = {}
+    for r in list_readings(conn, user_id):
+        groups.setdefault(r.taken_at[:10], []).append(r)
+    return list(groups.items())
+
+
+def delete_reading(conn, user_id: int, reading_id: int) -> bool:
+    cur = conn.execute("DELETE FROM readings WHERE id = ? AND user_id = ?",
+                       (reading_id, user_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def purge_before(conn, user_id: int, before: date, dry_run: bool = False) -> int:
+    """Delete (or with dry_run just count) readings taken strictly before `before`."""
+    where = "WHERE user_id = ? AND taken_at < ?"
+    args = (user_id, before.isoformat())
+    if dry_run:
+        return conn.execute(f"SELECT COUNT(*) FROM readings {where}", args).fetchone()[0]
+    cur = conn.execute(f"DELETE FROM readings {where}", args)
+    conn.commit()
+    logger.info("user %s purged %d reading(s) before %s", user_id, cur.rowcount, before)
+    return cur.rowcount

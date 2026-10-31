@@ -1,7 +1,7 @@
 """FastAPI application entry point: app wiring.
 
-The web UI lives in ``app/web.py``; the JSON API (``/api/...``, Phase 2) will
-authenticate with the same session cookie. Business logic lives in
+The web UI lives in ``app/web.py``; the JSON API (``/api/...``) lives in
+``app/api.py`` and authenticates with the same session cookie. Business logic lives in
 ``app/service.py``.
 """
 import logging
@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
 
 from . import db  # noqa: E402
+from .api import router as api_router  # noqa: E402
 from .web import router as web_router  # noqa: E402
 
 logging.basicConfig(
@@ -63,6 +64,7 @@ app.add_middleware(
     https_only=os.getenv("COOKIE_SECURE", "").lower() == "true",
 )
 
+app.include_router(api_router)
 app.include_router(web_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 

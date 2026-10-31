@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="page-subtitle">Prune old data.</p>
+  </div>
+</div>
+
+<section class="panel">
+  <h2>Delete old readings</h2>
+  {% if purged is not none %}<p class="tag">Deleted {{ purged }} reading{{ "" if purged == 1 else "s" }}.</p>{% endif %}
+  <form method="get" action="/settings" class="row">
+    <label>Delete everything before
+      <input type="date" name="before" value="{{ before or '' }}" required>
+    </label>
+    <button type="submit" class="secondary">Preview</button>
+  </form>
+
+  {% if before %}
+    {% if count %}
+    <form method="post" action="/settings/purge"
+          data-confirm="Permanently delete {{ count }} reading{{ '' if count == 1 else 's' }} before {{ before }}? This cannot be undone.">
+      <input type="hidden" name="before" value="{{ before }}">
+      <p><b>{{ count }}</b> reading{{ "" if count == 1 else "s" }} taken before {{ before }} will be deleted.</p>
+      <div class="dialog-actions">
+        <button type="submit" class="danger">Delete {{ count }}</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="muted">No readings before {{ before }}.</p>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

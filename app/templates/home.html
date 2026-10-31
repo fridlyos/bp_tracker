@@ -3,11 +3,59 @@
 <div class="page-head">
   <div>
     <h1>Today</h1>
-    <p class="page-subtitle">Blood pressure log for {{ user.username }}.</p>
+    <p class="page-subtitle">{{ today.strftime("%A, %B %-d") }}</p>
   </div>
 </div>
 
 <section class="panel">
-  <p class="muted">No readings yet. Quick-add form arrives in Phase 2.</p>
+  <h2>Add reading</h2>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/readings">
+    <div class="bp-grid">
+      <label>Systolic
+        <input type="number" name="systolic" inputmode="numeric" min="50" max="260" required
+               value="{{ form.systolic }}" placeholder="120" autofocus>
+      </label>
+      <label>Diastolic
+        <input type="number" name="diastolic" inputmode="numeric" min="30" max="160" required
+               value="{{ form.diastolic }}" placeholder="80">
+      </label>
+      <label>Pulse <span class="muted">(opt.)</span>
+        <input type="number" name="pulse" inputmode="numeric" min="30" max="220"
+               value="{{ form.pulse }}" placeholder="70">
+      </label>
+    </div>
+    <label>Time
+      <input type="datetime-local" name="taken_at" value="{{ form.taken_at or now }}"
+             {% if not form.taken_at %}data-default-now{% endif %}>
+    </label>
+    <label>Note <span class="muted">(optional)</span>
+      <input name="note" maxlength="500" value="{{ form.note }}" placeholder="after coffee, left arm…">
+    </label>
+    <div class="dialog-actions">
+      <button type="submit">Save reading</button>
+    </div>
+  </form>
 </section>
+
+<section class="panel">
+  <div class="section-head">
+    <h2>Today's readings <span class="muted">({{ readings|length }})</span></h2>
+  </div>
+  {% if readings %}
+    {% with items=readings, next="/" %}{% include "_reading_list.html" %}{% endwith %}
+  {% else %}
+    <p class="muted">Nothing logged today.</p>
+  {% endif %}
+</section>
+
+<script>
+  // default time = browser's local now (server guess may predate the tz cookie)
+  const t = document.querySelector("input[data-default-now]");
+  if (t) {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    t.value = d.toISOString().slice(0, 16);
+  }
+</script>
 {% endblock %}
