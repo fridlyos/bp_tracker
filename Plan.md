@@ -102,6 +102,17 @@ The app is now a hub of modules; blood pressure is the first one.
   with 308), API `/api/...` → `/api/bp/...`. No schema change.
 - Display name `APP_NAME` ("My Apps") lives in `app/ui.py`.
 
+### Phase 7 — Reminders via iPhone notifications (done)
+- Web Push (core): device subscriptions in `push_subscriptions`, VAPID keys
+  generated into `app_kv` on first use (no secrets to set). Works for the
+  home-screen app on iOS 16.4+ after "Enable notifications" in BP Settings.
+- BP Settings → Reminders: up to 6 daily times (stored with the browser's time
+  zone). A once-a-minute in-process scheduler sends "Time to check your blood
+  pressure"; tapping opens `/bp`. Skipped if a reading was logged in the
+  previous 2 hours; at most once per reminder per day.
+- Migration `0002_push_reminders` (app_kv, push_subscriptions, bp_reminders).
+- Possible next: weekly summary push, missed-day nudge.
+
 ### Later (only if wanted)
 - BP: CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
 - More modules (e.g. weight, medication) — add a folder under `app/modules/`.

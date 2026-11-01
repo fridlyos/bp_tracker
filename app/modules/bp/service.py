@@ -4,7 +4,9 @@ Each function takes an open sqlite connection and the acting user's id, and
 every query filters by it.
 """
 import logging
+import sqlite3
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .schemas import Reading, ReadingIn
 
@@ -227,3 +229,75 @@ def tile_summary(conn, user_id: int, today: date) -> str | None:
             else f"{day:%b} {day.day}")
     pulse = f" ♥ {r.pulse}" if r.pulse is not None else ""
     return f"Last: {r.systolic}/{r.diastolic}{pulse} · {when} {r.taken_at[11:16]}"
+
+
+# --- reminders (push notification to log a reading)
+
+MAX_REMINDERS = 6
+REMINDER_WINDOW = timedelta(minutes=30)  # late-fire allowance after a restart
+SKIP_IF_LOGGED_WITHIN = timedelta(hours=2)
+
+
+def list_reminders(conn, user_id: int) -> list[dict]:
+    return [dict(r) for r in conn.execute(
+        "SELECT id, at_time, tz FROM bp_reminders WHERE user_id = ? ORDER BY at_time", (user_id,))]
+
+
+def add_reminder(conn, user_id: int, at_time: str, tz: str) -> None:
+    """at_time 'HH:MM' in zone tz. ValueError on bad time, duplicate or too many."""
+    try:
+        t = datetime.strptime(at_time, "%H:%M").strftime("%H:%M")
+    except ValueError:
+        raise ValueError("Pick a time.")
+    if len(list_reminders(conn, user_id)) >= MAX_REMINDERS:
+        raise ValueError(f"At most {MAX_REMINDERS} reminders.")
+    try:
+        conn.execute("INSERT INTO bp_reminders (user_id, at_time, tz) VALUES (?,?,?)",
+                     (user_id, t, tz))
+    except sqlite3.IntegrityError:
+        raise ValueError(f"You already have a reminder at {t}.")
+    conn.commit()
+
+
+def delete_reminder(conn, user_id: int, reminder_id: int) -> None:
+    conn.execute("DELETE FROM bp_reminders WHERE id = ? AND user_id = ?", (reminder_id, user_id))
+    conn.commit()
+
+
+def _local(now_utc: datetime, tz: str) -> datetime:
+    try:
+        zone = ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    return now_utc.astimezone(zone).replace(tzinfo=None)
+
+
+def due_reminders(conn, now_utc: datetime) -> list[dict]:
+    """Reminders whose time has come today (in their zone, within the window)
+    and that haven't fired today. Each carries `local_now`."""
+    due = []
+    for r in conn.execute("SELECT * FROM bp_reminders").fetchall():
+        now = _local(now_utc, r["tz"])
+        at = datetime.combine(now.date(), datetime.strptime(r["at_time"], "%H:%M").time())
+        if r["last_sent"] != now.date().isoformat() and at <= now < at + REMINDER_WINDOW:
+            due.append({**dict(r), "local_now": now})
+    return due
+
+
+def send_reminders(conn, now_utc: datetime) -> None:
+    """Scheduler job: push 'time to log' for each due reminder, unless the user
+    logged a reading in the last 2 hours. Marked done for today either way."""
+    from ... import push  # late: keeps this module importable without push deps
+    for r in due_reminders(conn, now_utc):
+        since = _iso(r["local_now"] - SKIP_IF_LOGGED_WITHIN)
+        recent = conn.execute("SELECT 1 FROM readings WHERE user_id = ? AND taken_at >= ?",
+                              (r["user_id"], since)).fetchone()
+        if recent:
+            logger.info("reminder %s skipped: user %s logged recently", r["id"], r["user_id"])
+        else:
+            n = push.send_to_user(conn, r["user_id"], "Time to check your blood pressure",
+                                  "Tap to log a reading.", "/bp")
+            logger.info("reminder %s for user %s sent to %d device(s)", r["id"], r["user_id"], n)
+        conn.execute("UPDATE bp_reminders SET last_sent = ? WHERE id = ?",
+                     (r["local_now"].date().isoformat(), r["id"]))
+        conn.commit()

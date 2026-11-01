@@ -31,6 +31,8 @@ class Module:
     routers: tuple[APIRouter, ...] = ()
     # optional one-line status for the launcher tile, e.g. "Last: 128/82 · today"
     summary: Callable | None = field(default=None, compare=False)
+    # background jobs, run every minute by app/scheduler.py: job(conn, now_utc)
+    jobs: tuple[Callable, ...] = field(default=(), compare=False)
 
     @property
     def href(self) -> str:

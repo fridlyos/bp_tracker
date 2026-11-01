@@ -28,6 +28,15 @@ Core (shared by all modules):
   `base.html` shows its tab bar + breadcrumb), `redirect`, `safe_next`,
   `APP_NAME`.
 - `app/service.py` / `app/schemas.py` — users only.
+- `app/push.py` + `app/api.py` (`/api/push/key|subscribe|unsubscribe|test`) —
+  Web Push for any module: `push.send_to_user(conn, uid, title, body, url)`.
+  VAPID keys auto-generated into `app_kv` on first use (or `VAPID_PRIVATE_KEY`
+  PEM + `VAPID_PUBLIC_KEY` env); 404/410 subscriptions are dropped. iPhone
+  needs the home-screen app (iOS 16.4+) and a tap on "Enable notifications"
+  (`static/push.js`); `sw.js` shows the push and opens its `url` on tap.
+- `app/scheduler.py` — in-process loop started in lifespan, runs every
+  module's `jobs` once a minute as `job(conn, now_utc)`. Jobs must be
+  idempotent. `SCHEDULER=off` disables it (tests call `run_jobs_once(now)`).
 - `app/clock.py` — user-local time. Readings are naive local datetimes
   (`YYYY-MM-DDTHH:MM`); "now"/"today" use the browser zone from the `tz`
   cookie set in `base.html` (fallback UTC, server runs UTC on Fly).
@@ -46,7 +55,11 @@ Core (shared by all modules):
 
 Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
 - `web.py` — pages under `/bp`: Today (quick add + today's list), `/bp/trends`,
-  `/bp/reports`, `/bp/history`, `/bp/settings` (purge).
+  `/bp/reports`, `/bp/history`, `/bp/settings` (reminders + purge).
+- Reminders (`bp_reminders`): daily `HH:MM` in the IANA zone the browser had
+  when it was added. Job `service.send_reminders` fires each at most once per
+  local day, up to 30 min late (restarts), and skips if a reading was logged
+  in the 2 hours before.
 - `api.py` — JSON under `/api/bp` (readings CRUD + purge, `/api/bp/stats`
   chart data, `/api/bp/reports`).
 - `service.py` — readings SQL, stats, reports, launcher tile summary.
@@ -91,4 +104,5 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
 - Deploy: push/merge to `main` -> `.github/workflows/deploy.yml` runs tests, then
   `flyctl deploy` (repo secret `FLY_API_TOKEN`). Manual: `flyctl deploy`.
 - `./start.sh` or `uv run uvicorn app.main:app --reload` — local server on :8000.
-- Env: `BP_DB` (default `bp.db`), `SECRET_KEY`, `COOKIE_SECURE`, `ADMIN_PASSWORD`, `LOG_LEVEL`.
+- Env: `BP_DB` (default `bp.db`), `SECRET_KEY`, `COOKIE_SECURE`, `ADMIN_PASSWORD`, `LOG_LEVEL`,
+  `SCHEDULER` (on/off), `VAPID_SUBJECT`, optional `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY`.

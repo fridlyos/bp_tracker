@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Form, Query, Request
 from pydantic import ValidationError
 
-from ... import clock, db
+from ... import clock, db, push
 from ...deps import current_user
 from ...schemas import User
 from ...ui import redirect, render, safe_next
@@ -107,16 +107,48 @@ def reports(request: Request, period: str = Query("week"), conn=Depends(db.get_d
                   {"period": period, "reports": service.reports(conn, user.id, period)})
 
 
+def _settings_ctx(request, conn, user, **extra):
+    return {"reminders": service.list_reminders(conn, user.id),
+            "max_reminders": service.MAX_REMINDERS,
+            "tz": clock.user_tz(request).key, "devices": push.device_count(conn, user.id),
+            "before": None, "count": None, "purged": None, "reminder_error": None, **extra}
+
+
 @router.get("/settings")
 def settings(request: Request, before: date | None = Query(None),
              purged: int | None = Query(None),
              conn=Depends(db.get_db), user: User | None = Depends(current_user)):
-    """Purge form. With ?before= shows how many readings would go (preview)."""
+    """Reminders + purge form. With ?before= shows how many readings would go."""
     if user is None:
         return redirect("/login")
     count = service.purge_before(conn, user.id, before, dry_run=True) if before else None
     return render(request, "bp/settings.html", user,
-                  {"before": before, "count": count, "purged": purged})
+                  _settings_ctx(request, conn, user, before=before, count=count, purged=purged))
+
+
+@router.post("/reminders")
+def reminder_add(request: Request, at_time: str = Form(""), conn=Depends(db.get_db),
+                 user: User | None = Depends(current_user)):
+    """Add a daily reminder at HH:MM in the browser's current time zone."""
+    if user is None:
+        return redirect("/login")
+    try:
+        service.add_reminder(conn, user.id, at_time, clock.user_tz(request).key)
+    except ValueError as e:
+        resp = render(request, "bp/settings.html", user,
+                      _settings_ctx(request, conn, user, reminder_error=str(e)))
+        resp.status_code = 422
+        return resp
+    return redirect("/bp/settings#reminders")
+
+
+@router.post("/reminders/{reminder_id}/delete")
+def reminder_delete(reminder_id: int, conn=Depends(db.get_db),
+                    user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    service.delete_reminder(conn, user.id, reminder_id)
+    return redirect("/bp/settings#reminders")
 
 
 @router.post("/settings/purge")

@@ -22,3 +22,26 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(req))
   );
 });
+
+// --- push notifications (reminders). Payload: {title, body, url}
+self.addEventListener("push", (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (e) { d = { body: event.data && event.data.text() }; }
+  event.waitUntil(self.registration.showNotification(d.title || "Reminder", {
+    body: d.body || "", icon: "/static/icon-192.png", badge: "/static/icon-192.png",
+    data: { url: d.url || "/" }, tag: d.url || "reminder",
+  }));
+});
+
+// tap -> focus an open window (navigating it) or open the app at the url
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  event.waitUntil((async () => {
+    const wins = await clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const w of wins) {
+      if ("focus" in w) { await w.focus(); if ("navigate" in w) await w.navigate(url); return; }
+    }
+    await clients.openWindow(url);
+  })());
+});

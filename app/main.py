@@ -4,6 +4,7 @@ Core pages (launcher, auth, admin) live in ``app/web.py``. Feature modules
 (``app/modules/<key>/``) bring their own page and ``/api/<key>`` routers; every
 module in ``app.modules.MODULES`` is mounted here.
 """
+import asyncio
 import logging
 import os
 import secrets
@@ -21,7 +22,8 @@ from fastapi.responses import FileResponse, PlainTextResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
 
-from . import db  # noqa: E402
+from . import db, scheduler  # noqa: E402
+from .api import router as core_api_router  # noqa: E402
 from .modules import MODULES  # noqa: E402
 from .web import router as web_router  # noqa: E402
 
@@ -38,7 +40,10 @@ async def lifespan(_: FastAPI):
     db.init_db()
     if not os.getenv("SECRET_KEY"):
         logger.warning("SECRET_KEY not set — sessions will not survive a restart")
+    task = asyncio.create_task(scheduler.loop()) if scheduler.enabled() else None
     yield
+    if task:
+        task.cancel()
 
 
 app = FastAPI(title="BP Tracker", version="0.1.0", lifespan=lifespan)
@@ -67,6 +72,7 @@ app.add_middleware(
 for _module in MODULES:
     for _router in _module.routers:
         app.include_router(_router)
+app.include_router(core_api_router)
 app.include_router(web_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 

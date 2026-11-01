@@ -383,3 +383,18 @@ dialog::backdrop { background: var(--backdrop); }
   .launcher { grid-template-columns: 1fr; }
   .topbar .brand { white-space: nowrap; }
 }
+
+/* --- reminders */
+.push-device { margin: .6rem 0 1rem; padding: .75rem .9rem; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface); }
+.push-status { margin: 0; }
+.push-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.push-actions:has(button:not([hidden])) { margin-top: .6rem; }
+.push-actions button { min-height: 2.75rem; }
+.reminder-list li { grid-template-columns: minmax(0, 1fr) auto; }
+.reminder-list form.inline { margin: 0; }
+.reminder-list .x-delete { width: 2.75rem; height: 2.75rem; font-size: 1.15rem; font-weight: 600;
+  border: .375rem solid transparent; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--border); }
+.reminder-add { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; margin-top: .6rem; }
+.reminder-add input[type="time"] { min-height: 2.75rem; font-size: 1rem; }
+.reminder-add button { min-height: 2.75rem; }

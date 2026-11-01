@@ -20,4 +20,5 @@ MODULE = Module(
     ),
     routers=(web.router, api.router),
     summary=service.tile_summary,
+    jobs=(service.send_reminders,),
 )
