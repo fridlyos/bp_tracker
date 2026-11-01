@@ -366,21 +366,16 @@ dialog::backdrop { background: var(--backdrop); }
 .layout:not(:has(.tabbar)) main { max-width: 52rem; margin: 0 auto; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; }
-/* home screen: small app-style icons, label underneath */
-.launcher { display: grid; grid-template-columns: repeat(auto-fill, 5.5rem); gap: 1.2rem .6rem;
-  padding-top: .4rem; }
-.app-icon { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .3rem 0;
-  color: var(--text); text-decoration: none; border-radius: 12px; }
-.app-icon:active .app-icon-img { transform: scale(.94); }
-.app-icon-img { width: 3.5rem; height: 3.5rem; display: grid; place-items: center; border-radius: 14px;
+/* home screen: small icon-only buttons (44px tap target), name in aria-label/title */
+.launcher { display: flex; flex-wrap: wrap; gap: .75rem; padding-top: .4rem; }
+.app-icon { display: block; border-radius: 12px; }
+.app-icon-img { width: 2.75rem; height: 2.75rem; display: grid; place-items: center; border-radius: 12px;
   background: var(--primary); color: var(--on-primary); transition: transform .1s; }
 .app-icon:hover .app-icon-img { background: var(--primary-hover); }
-.app-icon-img svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.8;
+.app-icon:active .app-icon-img { transform: scale(.92); }
+.app-icon-img svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; }
-.app-icon-name { font-size: .78rem; font-weight: 600; line-height: 1.2; text-align: center;
-  color: var(--text-strong); }
 @media (max-width: 640px) {
-  .launcher { grid-template-columns: repeat(4, 1fr); }
   .topbar .brand { white-space: nowrap; }
 }
 

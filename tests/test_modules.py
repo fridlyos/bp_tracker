@@ -28,7 +28,8 @@ def test_launcher_shows_only_module_icons():
     c.post("/api/bp/readings", json={"systolic": 130, "diastolic": 85})
     html = c.get("/").text
     for m in MODULES:
-        assert f'class="app-icon" href="{m.href}"' in html and m.name in html
+        assert f'class="app-icon" href="{m.href}" aria-label="{m.name}"' in html
+    assert 'app-icon-name' not in html  # icon only, no visible text
     assert html.count('class="app-icon"') == len(MODULES)
     assert 'class="tabbar"' not in html and "130/85" not in html and m.description not in html
 

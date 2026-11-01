@@ -3,9 +3,9 @@
 <h1 class="visually-hidden">Home</h1>
 <nav class="launcher" aria-label="Modules">
   {% for m in modules %}
-  <a class="app-icon" href="{{ m.href }}">
+  {# icon only; the name is for screen readers and the hover tooltip #}
+  <a class="app-icon" href="{{ m.href }}" aria-label="{{ m.name }}" title="{{ m.name }}">
     <span class="app-icon-img" aria-hidden="true"><svg viewBox="0 0 24 24">{{ m.icon|safe }}</svg></span>
-    <span class="app-icon-name">{{ m.name }}</span>
   </a>
   {% endfor %}
 </nav>

@@ -91,8 +91,8 @@ normal band is still open.
 
 ### Phase 6 — Modular app (done)
 The app is now a hub of modules; blood pressure is the first one.
-- `/` is a launcher: a grid of small app-style icons, one per module, name
-  underneath (no status line, no Users icon — admin uses the account menu).
+- `/` is a launcher: small icon-only buttons, one per module, name only in
+  the tooltip / screen-reader label (no status line, no Users icon — admin uses the account menu).
   Tapping an icon opens the module.
 - Each module lives in `app/modules/<key>/` (web + api routers, service,
   schemas), its templates in `app/templates/<key>/`, pages under `/<key>` and
