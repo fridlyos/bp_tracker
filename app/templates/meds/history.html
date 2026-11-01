@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>History</h1>
+    <p class="page-subtitle">Doses marked in the last 30 days.</p>
+  </div>
+</div>
+
+{% for day, items in days %}
+<section class="panel">
+  <div class="section-head">
+    <h2>{{ day }}
+      <span class="muted">({{ items|selectattr("status", "equalto", "taken")|list|length }} taken{% set sk = items|selectattr("status", "equalto", "skipped")|list|length %}{% if sk %}, {{ sk }} skipped{% endif %})</span></h2>
+  </div>
+  <ul class="entry-list dose-list">
+    {% for d in items %}
+    <li class="dose dose-{{ d.status }}">
+      <span class="dose-time">{{ (d.scheduled_for or d.logged_at)[11:16] }}</span>
+      <span class="entry-main">
+        <span class="entry-name">{{ d.name }}</span>
+        <span class="entry-meta">
+          {% if d.status == "taken" %}<span class="dose-badge taken">✓ Taken</span>{% if d.scheduled_for %} at {{ d.logged_at[11:16] }}{% else %} · as needed{% endif %}
+          {% else %}<span class="dose-badge skipped">Skipped</span>{% endif %}{% if d.dose %} · {{ d.dose }}{% endif %}
+        </span>
+      </span>
+      <form method="post" action="/meds/doses/{{ d.id }}/undo" class="inline"
+            data-confirm="Remove this {{ d.status }} entry?">
+        <input type="hidden" name="next" value="/meds/history">
+        <button type="submit" class="x-delete" aria-label="Remove entry" title="Remove">&times;</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<section class="panel"><p class="muted">Nothing marked yet. Mark doses on <a href="/meds">Today</a>.</p></section>
+{% endfor %}
+{% endblock %}

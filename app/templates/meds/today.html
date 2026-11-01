@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Today</h1>
+    <p class="page-subtitle">{{ now.strftime("%A, %B %-d") }}</p>
+  </div>
+</div>
+
+{% if not has_meds %}
+<section class="panel">
+  <p>No medications yet.</p>
+  <p><a href="/meds/manage">Add your first medication</a> with the times you take it, and you'll get a reminder at each time.</p>
+</section>
+{% else %}
+
+<section class="panel">
+  <h2>Scheduled</h2>
+  {% if plan.scheduled %}
+  <ul class="entry-list dose-list">
+    {% for s in plan.scheduled %}
+    <li class="dose dose-{{ s.status }}">
+      <span class="dose-time">{{ s.time }}</span>
+      <span class="entry-main">
+        <span class="entry-name">{{ s.med.name }}</span>
+        <span class="entry-meta">
+          {% if s.status == "taken" %}<span class="dose-badge taken">✓ Taken {{ s.dose.logged_at[11:16] }}</span>
+          {% elif s.status == "skipped" %}<span class="dose-badge skipped">Skipped</span>
+          {% elif s.status == "due" %}<span class="dose-badge due">Due</span>
+          {% endif %}{% if s.med.dose %}{% if s.status != "upcoming" %} · {% endif %}{{ s.med.dose }}{% endif %}
+        </span>
+      </span>
+      <span class="dose-actions">
+        {% if s.dose %}
+        <form method="post" action="/meds/doses/{{ s.dose.id }}/undo" class="inline">
+          <button type="submit" class="secondary compact">Undo</button>
+        </form>
+        {% else %}
+        <form method="post" action="/meds/doses" class="inline">
+          <input type="hidden" name="med_id" value="{{ s.med.id }}">
+          <input type="hidden" name="slot" value="{{ s.slot }}">
+          <button type="submit" name="status" value="skipped" class="secondary compact">Skip</button>
+          <button type="submit" name="status" value="taken" class="compact">Taken</button>
+        </form>
+        {% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing scheduled. Medications without times are listed under “As needed”.</p>
+  {% endif %}
+</section>
+
+{% if plan.as_needed %}
+<section class="panel">
+  <h2>As needed</h2>
+  <ul class="entry-list dose-list">
+    {% for a in plan.as_needed %}
+    <li class="dose">
+      <span class="entry-main">
+        <span class="entry-name">{{ a.med.name }}</span>
+        <span class="entry-meta">
+          {% if a.med.dose %}{{ a.med.dose }} · {% endif %}
+          {% if a.doses %}today at {% for d in a.doses %}{{ d.logged_at[11:16] }}{{ ", " if not loop.last }}{% endfor %}
+          {% else %}not taken today{% endif %}
+        </span>
+      </span>
+      <span class="dose-actions">
+        {% if a.doses %}
+        <form method="post" action="/meds/doses/{{ a.doses[-1].id }}/undo" class="inline">
+          <button type="submit" class="secondary compact" aria-label="Undo last {{ a.med.name }} dose">Undo</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/meds/doses" class="inline">
+          <input type="hidden" name="med_id" value="{{ a.med.id }}">
+          <button type="submit" name="status" value="taken" class="compact">Log dose</button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

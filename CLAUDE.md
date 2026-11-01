@@ -78,6 +78,21 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
   thresholds live in `service.SYS_ZONES` / `DIA_ZONES` and must match the ones
   in `trends.html`.
 
+Medications module (`app/modules/meds/`, templates in `app/templates/meds/`):
+- Pages under `/meds`: Today (checklist of today's slots: Taken / Skip / Undo,
+  plus "as needed" meds with Log dose), `/meds/history` (last 30 days),
+  `/meds/manage` (add/edit, pause = hidden + no reminders but history kept,
+  delete = removes history). JSON under `/api/meds` (list, today, doses).
+- Tables (`0003_meds`): `meds` (name, dose text, notes, tz, active),
+  `med_times` (`HH:MM`, `last_reminded`), `med_doses` (slot
+  `scheduled_for` 'YYYY-MM-DDTHH:MM' or NULL for as-needed, status
+  taken|skipped, `logged_at`; unique per med+slot, re-marking replaces).
+- Job `service.send_reminders`: one push per user per minute listing every
+  med due now (in the med's zone, ≤30 min late, once per day per time),
+  skipping slots already marked (e.g. taken early). Tapping opens `/meds`.
+- Validation: `schemas.MedIn` (name required ≤80, dose ≤80, notes ≤300,
+  ≤6 distinct `HH:MM` times; none = as needed).
+
 ## Adding a module
 
 1. `app/modules/<key>/` with `web.py` (`APIRouter(prefix="/<key>")`),

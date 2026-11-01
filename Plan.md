@@ -114,6 +114,16 @@ The app is now a hub of modules; blood pressure is the first one.
 - Migration `0002_push_reminders` (app_kv, push_subscriptions, bp_reminders).
 - Possible next: weekly summary push, missed-day nudge.
 
+### Phase 8 — Medications module (done)
+- Second module (`/meds`, pill icon on the home screen). Add meds with an
+  optional dose text and up to 6 daily times (none = as needed); pause or
+  delete. Today = checklist with Taken / Skip / Undo per dose slot and
+  Log dose for as-needed meds; History = last 30 days.
+- Push reminder at each dose time (grouped when several meds are due at
+  once), not sent if that dose was already marked. Migration `0003_meds`.
+- Possible next: refill/stock count, a follow-up nudge if still not taken,
+  adherence % per week.
+
 ### Later (only if wanted)
 - BP: CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
 - More modules (e.g. weight, medication) — add a folder under `app/modules/`.

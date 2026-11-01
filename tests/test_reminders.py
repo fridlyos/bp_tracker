@@ -147,4 +147,5 @@ def test_failing_job_does_not_stop_others(monkeypatch, caplog):
         seen.append(now)
     monkeypatch.setattr(type(bp), "jobs", property(lambda self: (bad, good)), raising=False)
     scheduler.run_jobs_once(datetime(2026, 1, 1, tzinfo=timezone.utc))
-    assert len(seen) == 1 and "job bp.bad failed" in caplog.text
+    # the patch applies to every module: each one's bad job fails, its good job still runs
+    assert len(seen) == len(MODULES) and "job bp.bad failed" in caplog.text

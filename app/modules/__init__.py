@@ -43,5 +43,6 @@ class Module:
 
 
 from .bp import MODULE as BP  # noqa: E402
+from .meds import MODULE as MEDS  # noqa: E402
 
-MODULES: tuple[Module, ...] = (BP,)
+MODULES: tuple[Module, ...] = (BP, MEDS)
