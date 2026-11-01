@@ -1,30 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <h1>Hi, {{ user.username }}</h1>
-    <p class="page-subtitle">Pick a module.</p>
-  </div>
-</div>
-
+<h1 class="visually-hidden">Home</h1>
 <nav class="launcher" aria-label="Modules">
-  {% for t in tiles %}
-  <a class="tile" href="{{ t.module.href }}">
-    <span class="tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24">{{ t.module.icon|safe }}</svg></span>
-    <span class="tile-text">
-      <span class="tile-name">{{ t.module.name }}</span>
-      <span class="tile-desc">{{ t.summary or t.module.description }}</span>
-    </span>
+  {% for m in modules %}
+  <a class="app-icon" href="{{ m.href }}">
+    <span class="app-icon-img" aria-hidden="true"><svg viewBox="0 0 24 24">{{ m.icon|safe }}</svg></span>
+    <span class="app-icon-name">{{ m.name }}</span>
   </a>
   {% endfor %}
-  {% if user.is_admin %}
-  <a class="tile tile-admin" href="/users-ui">
-    <span class="tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 010 6.4M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg></span>
-    <span class="tile-text">
-      <span class="tile-name">Users</span>
-      <span class="tile-desc">Create, reset and switch accounts.</span>
-    </span>
-  </a>
-  {% endif %}
 </nav>
 {% endblock %}

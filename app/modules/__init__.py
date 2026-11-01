@@ -2,7 +2,7 @@
 
 A module is a self-contained feature (its own pages under /<key>, JSON API
 under /api/<key>, templates under templates/<key>/, service and schemas). The
-launcher at / shows one tile per module; inside a module the tab bar shows that
+launcher at / shows one icon per module; inside a module the tab bar shows that
 module's pages.
 
 To add a module: create app/modules/<key>/ exposing MODULE (see bp/), then
@@ -26,11 +26,9 @@ class Module:
     key: str
     name: str
     description: str
-    icon: str                 # inner SVG markup, shown on the launcher tile
+    icon: str                 # inner SVG markup, shown on the launcher icon
     nav: tuple[NavItem, ...]  # first item is the module's start page
     routers: tuple[APIRouter, ...] = ()
-    # optional one-line status for the launcher tile, e.g. "Last: 128/82 · today"
-    summary: Callable | None = field(default=None, compare=False)
     # background jobs, run every minute by app/scheduler.py: job(conn, now_utc)
     jobs: tuple[Callable, ...] = field(default=(), compare=False)
 

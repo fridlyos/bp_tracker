@@ -19,6 +19,5 @@ MODULE = Module(
                 '<circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
     ),
     routers=(web.router, api.router),
-    summary=service.tile_summary,
     jobs=(service.send_reminders,),
 )

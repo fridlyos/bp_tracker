@@ -364,23 +364,23 @@ dialog::backdrop { background: var(--backdrop); }
 .topbar .crumb { color: var(--muted); font-weight: 600; font-size: .95rem; text-decoration: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .layout:not(:has(.tabbar)) main { max-width: 52rem; margin: 0 auto; }
-.launcher { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .8rem; }
-.tile { display: flex; align-items: center; gap: .9rem; min-height: 5rem; padding: .9rem 1rem;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-  color: var(--text); text-decoration: none; transition: border-color .15s, transform .1s; }
-.tile:hover { border-color: var(--primary); }
-.tile:active { transform: scale(.98); }
-.tile-icon { flex: 0 0 auto; width: 3.25rem; height: 3.25rem; display: grid; place-items: center;
-  border-radius: 12px; background: var(--primary); color: var(--on-primary); }
-.tile-admin .tile-icon { background: var(--surface-subtle); color: var(--text-strong);
-  border: 1px solid var(--border); }
-.tile-icon svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8;
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; }
+/* home screen: small app-style icons, label underneath */
+.launcher { display: grid; grid-template-columns: repeat(auto-fill, 5.5rem); gap: 1.2rem .6rem;
+  padding-top: .4rem; }
+.app-icon { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .3rem 0;
+  color: var(--text); text-decoration: none; border-radius: 12px; }
+.app-icon:active .app-icon-img { transform: scale(.94); }
+.app-icon-img { width: 3.5rem; height: 3.5rem; display: grid; place-items: center; border-radius: 14px;
+  background: var(--primary); color: var(--on-primary); transition: transform .1s; }
+.app-icon:hover .app-icon-img { background: var(--primary-hover); }
+.app-icon-img svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round; }
-.tile-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
-.tile-name { font-weight: 700; font-size: 1.05rem; color: var(--text-strong); }
-.tile-desc { font-size: .86rem; color: var(--muted); }
+.app-icon-name { font-size: .78rem; font-weight: 600; line-height: 1.2; text-align: center;
+  color: var(--text-strong); }
 @media (max-width: 640px) {
-  .launcher { grid-template-columns: 1fr; }
+  .launcher { grid-template-columns: repeat(4, 1fr); }
   .topbar .brand { white-space: nowrap; }
 }
 

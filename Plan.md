@@ -91,8 +91,9 @@ normal band is still open.
 
 ### Phase 6 — Modular app (done)
 The app is now a hub of modules; blood pressure is the first one.
-- `/` is a launcher: one tile per module (with a one-line status, e.g. the last
-  reading) plus a Users tile for admin. Tapping a tile opens the module.
+- `/` is a launcher: a grid of small app-style icons, one per module, name
+  underneath (no status line, no Users icon — admin uses the account menu).
+  Tapping an icon opens the module.
 - Each module lives in `app/modules/<key>/` (web + api routers, service,
   schemas), its templates in `app/templates/<key>/`, pages under `/<key>` and
   JSON under `/api/<key>`. Registered in `app/modules/__init__.py` (`MODULES`).

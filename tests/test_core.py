@@ -48,7 +48,7 @@ def test_admin_seeded_and_sees_users():
     c = _client()
     c.post("/login", data={"username": "admin", "password": "admin"})
     r = c.get("/")
-    # admin uses modules like anyone; Users is an extra launcher tile + menu entry
+    # admin uses modules like anyone; Users is in the account menu
     assert r.url.path == "/" and 'href="/bp"' in r.text and 'href="/users-ui"' in r.text
     assert "Add reading" in c.get("/bp").text
     assert "@admin" in c.get("/users-ui").text

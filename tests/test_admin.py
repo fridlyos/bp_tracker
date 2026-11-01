@@ -64,7 +64,7 @@ def test_admin_can_log_readings():
     c = _admin()
     assert c.post("/api/bp/readings", json={"systolic": 130, "diastolic": 85}).status_code == 201
     assert "130/85" in c.get("/bp").text
-    assert "Last: 130/85" in c.get("/").text  # launcher tile summary
+    assert "Last:" not in c.get("/").text  # home screen shows modules only
 
 
 def test_non_admin_cannot_create_users():

@@ -16,10 +16,10 @@ Core (shared by all modules):
   Mounts every router of every module in `MODULES`.
 - `app/modules/__init__.py` — `Module` / `NavItem` dataclasses and the
   `MODULES` registry. A module = key, name, description, tile icon, nav items
-  (first = start page), routers, optional `summary(conn, user_id, today)` for
-  its launcher tile.
-- `app/web.py` — core HTML routes: launcher `/` (tile per module + Users tile
-  for admin), register/login/logout, admin `/users-ui` (create/reset/delete
+  (first = start page), routers, optional background `jobs`.
+- `app/web.py` — core HTML routes: launcher `/` (small app-style icon per
+  module, nothing else; admin reaches Users via the account menu),
+  register/login/logout, admin `/users-ui` (create/reset/delete
   users, "Switch to this user" = logout + login prefilled), 308 redirects from
   pre-module URLs (`/trends` → `/bp/trends`, ...).
 - `app/deps.py` — session user: `current_user` (HTML, None = anonymous ->
@@ -62,7 +62,7 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
   in the 2 hours before.
 - `api.py` — JSON under `/api/bp` (readings CRUD + purge, `/api/bp/stats`
   chart data, `/api/bp/reports`).
-- `service.py` — readings SQL, stats, reports, launcher tile summary.
+- `service.py` — readings SQL, stats, reports, reminders.
 - `schemas.py` — `ReadingIn`, `Reading`, `PurgeIn`.
 - `templates/bp/trends.html` — Chart.js 4.4.1 (cdnjs) page fed by
   `/api/bp/stats`. BP and pulse are separate charts (never a dual axis). BP

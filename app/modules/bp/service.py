@@ -215,22 +215,6 @@ def reports(conn, user_id: int, period: str) -> list[dict]:
     return out
 
 
-# --- launcher tile
-
-def tile_summary(conn, user_id: int, today: date) -> str | None:
-    """'Last: 128/82 ♥ 66 · today 08:15' for the launcher, or None if no readings."""
-    row = conn.execute("SELECT * FROM readings WHERE user_id = ?"
-                       " ORDER BY taken_at DESC, id DESC LIMIT 1", (user_id,)).fetchone()
-    if row is None:
-        return None
-    r = _reading(row)
-    day = date.fromisoformat(r.taken_at[:10])
-    when = ("today" if day == today else "yesterday" if day == today - timedelta(days=1)
-            else f"{day:%b} {day.day}")
-    pulse = f" ♥ {r.pulse}" if r.pulse is not None else ""
-    return f"Last: {r.systolic}/{r.diastolic}{pulse} · {when} {r.taken_at[11:16]}"
-
-
 # --- reminders (push notification to log a reading)
 
 MAX_REMINDERS = 6

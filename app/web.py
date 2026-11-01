@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 
-from . import clock, db, service
+from . import db, service
 from .deps import current_user, start_session
 from .modules import MODULES
 from .schemas import User
@@ -19,15 +19,11 @@ router = APIRouter()
 
 
 @router.get("/")
-def launcher(request: Request, conn=Depends(db.get_db),
-             user: User | None = Depends(current_user)):
-    """Home screen: one tile per module (plus Users for admin)."""
+def launcher(request: Request, user: User | None = Depends(current_user)):
+    """Home screen: one icon per module. (Admin's Users page is in the account menu.)"""
     if user is None:
         return _to("/login")
-    today = clock.local_today(request)
-    tiles = [{"module": m, "summary": m.summary(conn, user.id, today) if m.summary else None}
-             for m in MODULES]
-    return _render(request, "launcher.html", user, {"tiles": tiles})
+    return _render(request, "launcher.html", user, {"modules": MODULES})
 
 
 # Pre-modules URLs (bookmarks, home-screen shortcuts) -> their new home.
