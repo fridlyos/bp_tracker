@@ -366,14 +366,14 @@ dialog::backdrop { background: var(--backdrop); }
 .layout:not(:has(.tabbar)) main { max-width: 52rem; margin: 0 auto; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; }
-/* home screen: small icon-only buttons (44px tap target), name in aria-label/title */
-.launcher { display: flex; flex-wrap: wrap; gap: .75rem; padding-top: .4rem; }
-.app-icon { display: block; border-radius: 12px; }
-.app-icon-img { width: 2.75rem; height: 2.75rem; display: grid; place-items: center; border-radius: 12px;
+/* home screen: large icon-only buttons (132px), name in aria-label/title */
+.launcher { display: flex; flex-wrap: wrap; gap: 1.25rem; padding-top: .6rem; }
+.app-icon { display: block; border-radius: 30px; }
+.app-icon-img { width: 8.25rem; height: 8.25rem; display: grid; place-items: center; border-radius: 30px;
   background: var(--primary); color: var(--on-primary); transition: transform .1s; }
 .app-icon:hover .app-icon-img { background: var(--primary-hover); }
 .app-icon:active .app-icon-img { transform: scale(.92); }
-.app-icon-img svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
+.app-icon-img svg { width: 54px; height: 54px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; }
 @media (max-width: 640px) {
   .topbar .brand { white-space: nowrap; }

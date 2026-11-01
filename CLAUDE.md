@@ -18,7 +18,7 @@ Core (shared by all modules):
   `MODULES` registry. A module = key, name, description, tile icon, nav items
   (first = start page), routers, optional background `jobs`.
 - `app/web.py` — core HTML routes: launcher `/` (small icon-only button per
-  module (44px, name in aria-label/title), nothing else; admin reaches Users via the account menu),
+  module (132px, name in aria-label/title), nothing else; admin reaches Users via the account menu),
   register/login/logout, admin `/users-ui` (create/reset/delete
   users, "Switch to this user" = logout + login prefilled), 308 redirects from
   pre-module URLs (`/trends` → `/bp/trends`, ...).
