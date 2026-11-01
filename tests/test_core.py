@@ -25,7 +25,7 @@ def test_register_login_home():
     c = _client()
     r = c.post("/register", data={"username": "alice", "password": "pw"}, follow_redirects=False)
     assert r.status_code == 303
-    assert "Add reading" in c.get("/").text
+    assert 'href="/bp"' in c.get("/").text  # lands on the launcher
 
     c.post("/logout")
     assert c.get("/", follow_redirects=False).headers["location"] == "/login"
@@ -34,7 +34,7 @@ def test_register_login_home():
     assert "Wrong password for “alice”" in bad.text
 
     c.post("/login", data={"username": "alice", "password": "pw"})
-    assert "Add reading" in c.get("/").text
+    assert 'href="/bp"' in c.get("/").text and "Add reading" in c.get("/bp").text
 
 
 def test_duplicate_username_rejected():
@@ -48,8 +48,9 @@ def test_admin_seeded_and_sees_users():
     c = _client()
     c.post("/login", data={"username": "admin", "password": "admin"})
     r = c.get("/")
-    # admin logs readings like anyone; Users is an extra nav entry
-    assert r.url.path == "/" and "Add reading" in r.text and 'href="/users-ui"' in r.text
+    # admin uses modules like anyone; Users is an extra launcher tile + menu entry
+    assert r.url.path == "/" and 'href="/bp"' in r.text and 'href="/users-ui"' in r.text
+    assert "Add reading" in c.get("/bp").text
     assert "@admin" in c.get("/users-ui").text
 
 

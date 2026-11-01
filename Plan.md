@@ -89,6 +89,20 @@ normal band is still open.
   BP zone (same thresholds as Trends) as a stacked bar + counts and %.
 - `service.reports()` groups in Python; tests in `tests/test_reports.py`.
 
+### Phase 6 — Modular app (done)
+The app is now a hub of modules; blood pressure is the first one.
+- `/` is a launcher: one tile per module (with a one-line status, e.g. the last
+  reading) plus a Users tile for admin. Tapping a tile opens the module.
+- Each module lives in `app/modules/<key>/` (web + api routers, service,
+  schemas), its templates in `app/templates/<key>/`, pages under `/<key>` and
+  JSON under `/api/<key>`. Registered in `app/modules/__init__.py` (`MODULES`).
+- Inside a module the tab bar shows Home + that module's pages; the top bar
+  shows "My Apps / <module>". Core pages (launcher, Users) have no tab bar.
+- BP moved: `/` → `/bp`, `/trends` → `/bp/trends` etc. (old GET URLs redirect
+  with 308), API `/api/...` → `/api/bp/...`. No schema change.
+- Display name `APP_NAME` ("My Apps") lives in `app/ui.py`.
+
 ### Later (only if wanted)
-- CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
+- BP: CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
+- More modules (e.g. weight, medication) — add a folder under `app/modules/`.
 

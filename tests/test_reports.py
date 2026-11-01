@@ -9,7 +9,8 @@ if "BP_DB" not in os.environ:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import db, service  # noqa: E402
+from app import db  # noqa: E402
+from app.modules.bp import service  # noqa: E402
 from app.main import app  # noqa: E402
 
 db.init_db()
@@ -25,7 +26,7 @@ def _user():
 
 
 def _add(c, taken_at, sys, dia, pulse=None):
-    r = c.post("/api/readings", json={"taken_at": taken_at, "systolic": sys,
+    r = c.post("/api/bp/readings", json={"taken_at": taken_at, "systolic": sys,
                                       "diastolic": dia, "pulse": pulse})
     assert r.status_code == 201, r.text
 
@@ -44,7 +45,7 @@ def test_weekly_report_math_and_zones():
     _add(c, "2026-10-28T08:00", 125, 85, None)  # pulse missing
     _add(c, "2026-11-01T21:00", 142, 92, 70)   # Sun, same week
     _add(c, "2026-11-02T07:00", 130, 81, 66)   # next Monday -> new week
-    rep = c.get("/api/reports", params={"period": "week"}).json()["reports"]
+    rep = c.get("/api/bp/reports", params={"period": "week"}).json()["reports"]
     assert [(r["start"], r["end"], r["count"]) for r in rep] == [
         ("2026-11-02", "2026-11-08", 1), ("2026-10-26", "2026-11-01", 3)]
     w = rep[1]
@@ -64,19 +65,19 @@ def test_monthly_report_and_page():
     _add(c, "2026-09-30T23:59", 120, 80)
     _add(c, "2026-10-01T00:00", 130, 85)
     _add(c, "2026-10-31T12:00", 140, 90)
-    rep = c.get("/api/reports", params={"period": "month"}).json()["reports"]
+    rep = c.get("/api/bp/reports", params={"period": "month"}).json()["reports"]
     assert [(r["label"], r["count"]) for r in rep] == [("October 2026", 2), ("September 2026", 1)]
     assert rep[1]["pulse"] is None
-    html = c.get("/reports?period=month").text
+    html = c.get("/bp/reports?period=month").text
     assert "October 2026" in html and "September 2026" in html and "no data" in html
-    assert c.get("/reports?period=bogus").status_code == 200  # falls back to weekly
+    assert c.get("/bp/reports?period=bogus").status_code == 200  # falls back to weekly
 
 
 def test_reports_are_per_user_and_need_login():
     a, b = _user(), _user()
     _add(a, "2026-10-01T08:00", 120, 80)
-    assert b.get("/api/reports").json()["reports"] == []
-    assert "No readings yet" in b.get("/reports").text
+    assert b.get("/api/bp/reports").json()["reports"] == []
+    assert "No readings yet" in b.get("/bp/reports").text
     anon = TestClient(app)
-    assert anon.get("/api/reports").status_code == 401
-    assert anon.get("/reports", follow_redirects=False).headers["location"] == "/login"
+    assert anon.get("/api/bp/reports").status_code == 401
+    assert anon.get("/bp/reports", follow_redirects=False).headers["location"] == "/login"

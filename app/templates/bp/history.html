@@ -12,9 +12,9 @@
   <div class="section-head">
     <h2>{{ day }} <span class="muted">({{ items|length }})</span></h2>
   </div>
-  {% with next="/history" %}{% include "_reading_list.html" %}{% endwith %}
+  {% with next="/history" %}{% include "bp/_reading_list.html" %}{% endwith %}
 </section>
 {% else %}
-<section class="panel"><p class="muted">No readings yet. <a href="/">Add one</a>.</p></section>
+<section class="panel"><p class="muted">No readings yet. <a href="/bp">Add one</a>.</p></section>
 {% endfor %}
 {% endblock %}

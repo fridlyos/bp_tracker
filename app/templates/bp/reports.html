@@ -8,7 +8,7 @@
   </div>
 </div>
 
-<form class="range-row" method="get" action="/reports">
+<form class="range-row" method="get" action="/bp/reports">
   <div class="range-tabs" role="group" aria-label="Report period">
     {% for value, label in [("week", "Weekly"), ("month", "Monthly")] %}
     <button type="submit" name="period" value="{{ value }}" aria-pressed="{{ 'true' if period == value else 'false' }}"
@@ -58,7 +58,7 @@
   </div>
 </section>
 {% else %}
-<section class="panel"><p class="muted">No readings yet. <a href="/">Add one</a>.</p></section>
+<section class="panel"><p class="muted">No readings yet. <a href="/bp">Add one</a>.</p></section>
 {% endfor %}
 </div>
 {% endblock %}

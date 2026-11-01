@@ -31,7 +31,7 @@
 </div>
 
 <section class="panel" id="empty" hidden>
-  <p class="muted">No readings in this range. <a href="/">Add one</a>.</p>
+  <p class="muted">No readings in this range. <a href="/bp">Add one</a>.</p>
 </section>
 
 <div id="charts">
@@ -67,7 +67,7 @@
   <section class="panel" id="day-detail" hidden>
     <div class="section-head">
       <h2 id="day-detail-title"></h2>
-      <a href="/history">History</a>
+      <a href="/bp/history">History</a>
     </div>
     <ul class="entry-list reading-list" id="day-detail-list"></ul>
   </section>
@@ -97,7 +97,7 @@
   try { range = localStorage.getItem("trends-range") || "week"; } catch (e) {}
   if (!(range in RANGE_TEXT)) range = "week";
   let day = null;       // selected day for the Day range (YYYY-MM-DD), null = today
-  let last = null;      // last /api/stats payload, re-rendered on theme change
+  let last = null;      // last /api/bp/stats payload, re-rendered on theme change
   const charts = {};
 
   // --- formatting
@@ -315,7 +315,7 @@
   }
 
   async function openDay(iso) {
-    const res = await fetch(`/api/readings?from=${iso}&to=${iso}`);
+    const res = await fetch(`/api/bp/readings?from=${iso}&to=${iso}`);
     if (!res.ok) return;
     const items = (await res.json()).reverse();
     $("day-detail-title").textContent = fmtLong(iso);
@@ -348,7 +348,7 @@
     const q = new URLSearchParams({ range });
     if (range === "day" && day) q.set("date", day);
     $("charts").classList.add("loading");   // keep the old frame while refetching
-    const res = await fetch(`/api/stats?${q}`);
+    const res = await fetch(`/api/bp/stats?${q}`);
     $("charts").classList.remove("loading");
     if (res.status === 401) { location.href = "/login"; return; }
     if (!res.ok) return;

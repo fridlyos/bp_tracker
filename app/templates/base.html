@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- viewport-fit=cover: draw under the notch / home bar; safe-area padding in CSS -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>BP Tracker</title>
+  <title>{% if module %}{{ module.name }} · {% endif %}{{ APP_NAME }}</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="#f8fafc">
@@ -30,10 +30,12 @@
   </script>
 {% block head %}{% endblock %}
 </head>
-<body class="{{ 'signed-in' if user else 'signed-out' }}">
-  {% set path = request.url.path %}
+<body class="{{ 'signed-in' if user else 'signed-out' }}{{ ' has-tabbar' if user and module }}">
   <header class="topbar">
-    <a class="brand" href="/">BP Tracker</a>
+    <div class="crumbs">
+      <a class="brand" href="/">{{ APP_NAME }}</a>
+      {% if module %}<span class="crumb-sep" aria-hidden="true">/</span><a class="crumb" href="{{ module.href }}">{{ module.name }}</a>{% endif %}
+    </div>
     {% if user %}
     <details class="user-menu">
       <summary aria-label="Account: {{ user.username }}">
@@ -60,19 +62,13 @@
   </header>
 
   <div class="layout">
-    {% if user %}
-    <nav class="tabbar" aria-label="Main">
-      {% macro tab(href, label, active) %}
-      <a href="{{ href }}"{% if active %} class="active" aria-current="page"{% endif %}>{{ caller() }}<span>{{ label }}</span></a>
-      {% endmacro %}
-      {% call tab("/", "Today", path == "/") %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>{% endcall %}
-      {% call tab("/trends", "Trends", path.startswith("/trends")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 6-8 3 3"/><path d="M3 21h18"/></svg>{% endcall %}
-      {% call tab("/reports", "Reports", path.startswith("/reports")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-3M12 17v-6M16 17V9"/></svg>{% endcall %}
-      {% call tab("/history", "History", path.startswith("/history")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>{% endcall %}
-      {% call tab("/settings", "Settings", path.startswith("/settings")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>{% endcall %}
-      {% if user.is_admin %}
-      {% call tab("/users-ui", "Users", path.startswith("/users")) %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 010 6.4M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>{% endcall %}
-      {% endif %}
+    {% if user and module %}
+    {# inside a module: Home (launcher) + that module's pages #}
+    <nav class="tabbar" aria-label="{{ module.name }}">
+      <a href="/" class="tab-home"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg><span>Home</span></a>
+      {% for item in module.nav %}
+      <a href="{{ item.href }}"{% if item == active_nav %} class="active" aria-current="page"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true">{{ item.icon|safe }}</svg><span>{{ item.label }}</span></a>
+      {% endfor %}
     </nav>
     {% endif %}
     <main>

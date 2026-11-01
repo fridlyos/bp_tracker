@@ -6,7 +6,7 @@
       <span class="entry-name bp-value">{{ r.systolic }}/{{ r.diastolic }}{% if r.pulse is not none %} <span class="pulse">♥ {{ r.pulse }}</span>{% endif %}</span>
       <span class="entry-meta">{{ r.taken_at[11:16] }}{% if r.note %} · {{ r.note }}{% endif %}</span>
     </span>
-    <form method="post" action="/readings/{{ r.id }}/delete" class="inline"
+    <form method="post" action="/bp/readings/{{ r.id }}/delete" class="inline"
           data-confirm="Delete reading {{ r.systolic }}/{{ r.diastolic }} at {{ r.taken_at[11:16] }}?">
       <input type="hidden" name="next" value="{{ next }}">
       <button type="submit" class="x-delete" aria-label="Delete reading" title="Delete">&times;</button>

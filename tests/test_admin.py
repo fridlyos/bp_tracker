@@ -42,7 +42,7 @@ def test_admin_creates_user_who_can_log_in():
 
     u = TestClient(app)
     u.post("/login", data={"username": "fromadmin", "password": "pw"})
-    assert "Add reading" in u.get("/").text
+    assert "Add reading" in u.get("/bp").text
 
 
 def test_create_then_switch_to_user_and_log():
@@ -56,14 +56,15 @@ def test_create_then_switch_to_user_and_log():
     assert 'value="me too"' in page.text
     c.post("/login", data={"username": "me too", "password": "pw2"})
     home = c.get("/")
-    assert "Add reading" in home.text and 'href="/users-ui"' not in home.text
-    assert c.post("/api/readings", json={"systolic": 121, "diastolic": 79}).status_code == 201
+    assert "Blood pressure" in home.text and 'href="/users-ui"' not in home.text
+    assert c.post("/api/bp/readings", json={"systolic": 121, "diastolic": 79}).status_code == 201
 
 
 def test_admin_can_log_readings():
     c = _admin()
-    assert c.post("/api/readings", json={"systolic": 130, "diastolic": 85}).status_code == 201
-    assert "130/85" in c.get("/").text
+    assert c.post("/api/bp/readings", json={"systolic": 130, "diastolic": 85}).status_code == 201
+    assert "130/85" in c.get("/bp").text
+    assert "Last: 130/85" in c.get("/").text  # launcher tile summary
 
 
 def test_non_admin_cannot_create_users():

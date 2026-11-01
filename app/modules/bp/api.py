@@ -1,4 +1,5 @@
-"""JSON API under /api. Same signed session cookie as the web UI; 401 if absent.
+"""Blood pressure JSON API under /api/bp. Same signed session cookie as the
+web UI; 401 if absent.
 
 Times are the user's local wall-clock time. A timezone-aware `taken_at` is
 converted to the user's zone (browser `tz` cookie); naive is stored as given.
@@ -8,18 +9,12 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
-from . import clock, db, service
+from ... import clock, db
+from ...deps import api_user
+from . import service
 from .schemas import PurgeIn, Reading, ReadingIn
-from .web import session_user
 
-router = APIRouter(prefix="/api")
-
-
-def api_user(request: Request, conn=Depends(db.get_db)) -> int:
-    user = session_user(request, conn)
-    if user is None:
-        raise HTTPException(401, "not logged in")
-    return user.id
+router = APIRouter(prefix="/api/bp")
 
 
 @router.post("/readings", response_model=Reading, status_code=201)

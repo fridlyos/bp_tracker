@@ -1,178 +1,49 @@
-"""HTML page routes. Render Jinja2, POST-redirect-GET.
+"""Core HTML routes: the launcher (/), register/login/logout and the admin
+console. Module pages live in app/modules/<key>/web.py.
 
-Auth: the logged-in user id lives in a signed session cookie (SessionMiddleware).
 Anonymous visitors are redirected to /login. Admin-only pages check is_admin.
 """
-from datetime import date
-from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
-from pydantic import ValidationError
 
 from . import clock, db, service
-from .schemas import ReadingIn, User
+from .deps import current_user, start_session
+from .modules import MODULES
+from .schemas import User
+from .ui import redirect as _to
+from .ui import render as _render
 
-templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 router = APIRouter()
 
 
-def start_session(request: Request, user: User) -> None:
-    # store the username too: SQLite reuses a deleted user's id, and a stale
-    # cookie must not log in as whoever gets that id next
-    request.session.clear()
-    request.session.update({"uid": user.id, "u": user.username})
-
-
-def session_user(request: Request, conn) -> User | None:
-    """The signed-in user, or None. A cookie whose uid now belongs to a
-    different (or no) user is cleared."""
-    uid = request.session.get("uid")
-    if not uid:
-        return None
-    user = service.get_user(conn, uid)
-    if user is None or request.session.get("u") != user.username:
-        request.session.clear()
-        return None
-    return user
-
-
-def current_user(request: Request, conn=Depends(db.get_db)) -> User | None:
-    return session_user(request, conn)
-
-
-def _render(request, name, user, ctx):
-    return templates.TemplateResponse(request, name, {"user": user, **ctx})
-
-
-def _to(path):
-    return RedirectResponse(path, status_code=303)
-
-
-def _safe_next(path: str | None) -> str:
-    # only same-site relative paths, never //host or absolute URLs
-    return path if path and path.startswith("/") and not path.startswith("//") else "/"
-
-
-_FIELD_LABELS = {"systolic": "Systolic", "diastolic": "Diastolic", "pulse": "Pulse",
-                 "note": "Note", "taken_at": "Time"}
-
-
-def _error_text(e: ValidationError) -> str:
-    msgs = []
-    for err in e.errors():
-        msg = err["msg"].removeprefix("Value error, ")
-        field = _FIELD_LABELS.get(err["loc"][0], "") if err["loc"] else ""
-        msgs.append(f"{field}: {msg}" if field else msg[:1].upper() + msg[1:])
-    return "; ".join(msgs)
-
-
-def _home_ctx(request, conn, user, form=None, error=None):
-    today = clock.local_today(request)
-    return {
-        "today": today,
-        "readings": service.list_readings(conn, user.id, today, today),
-        "now": clock.local_now(request).strftime("%Y-%m-%dT%H:%M"),
-        "form": form or {}, "error": error,
-    }
-
-
 @router.get("/")
-def home(request: Request, conn=Depends(db.get_db),
-         user: User | None = Depends(current_user)):
-    """Quick-add form + today's readings. Anonymous -> /login. Admins log
-    readings like anyone else; they just also get the Users page."""
+def launcher(request: Request, conn=Depends(db.get_db),
+             user: User | None = Depends(current_user)):
+    """Home screen: one tile per module (plus Users for admin)."""
     if user is None:
         return _to("/login")
-    return _render(request, "home.html", user, _home_ctx(request, conn, user))
+    today = clock.local_today(request)
+    tiles = [{"module": m, "summary": m.summary(conn, user.id, today) if m.summary else None}
+             for m in MODULES]
+    return _render(request, "launcher.html", user, {"tiles": tiles})
 
 
-# --- readings
-
-@router.post("/readings")
-def reading_add(request: Request, taken_at: str = Form(""), systolic: str = Form(""),
-                diastolic: str = Form(""), pulse: str = Form(""), note: str = Form(""),
-                conn=Depends(db.get_db), user: User | None = Depends(current_user)):
-    """Add a reading from the home form. Invalid input re-renders home with the error."""
-    if user is None:
-        return _to("/login")
-    form = {"taken_at": taken_at, "systolic": systolic, "diastolic": diastolic,
-            "pulse": pulse, "note": note}
-    try:
-        r = ReadingIn(taken_at=taken_at or None, systolic=systolic, diastolic=diastolic,
-                      pulse=pulse or None, note=note or None)
-    except ValidationError as e:
-        resp = _render(request, "home.html", user,
-                       _home_ctx(request, conn, user, form, _error_text(e)))
-        resp.status_code = 422
-        return resp
-    r.taken_at = clock.to_local_naive(r.taken_at, request)
-    service.add_reading(conn, user.id, r)
-    return _to("/")
+# Pre-modules URLs (bookmarks, home-screen shortcuts) -> their new home.
+_MOVED = {"/trends": "/bp/trends", "/history": "/bp/history",
+          "/reports": "/bp/reports", "/settings": "/bp/settings"}
 
 
-@router.post("/readings/{reading_id}/delete")
-def reading_delete(reading_id: int, next_: str | None = Form(None, alias="next"),
-                   conn=Depends(db.get_db), user: User | None = Depends(current_user)):
-    if user is None:
-        return _to("/login")
-    service.delete_reading(conn, user.id, reading_id)
-    return _to(_safe_next(next_))
+def _moved(new: str):
+    def handler(request: Request):
+        q = request.url.query
+        return RedirectResponse(new + (f"?{q}" if q else ""), status_code=308)
+    return handler
 
 
-@router.get("/history")
-def history(request: Request, conn=Depends(db.get_db),
-            user: User | None = Depends(current_user)):
-    """All readings grouped by day, newest first."""
-    if user is None:
-        return _to("/login")
-    return _render(request, "history.html", user,
-                   {"days": service.readings_by_day(conn, user.id)})
-
-
-@router.get("/trends")
-def trends(request: Request, user: User | None = Depends(current_user)):
-    """Charts page. Data comes from /api/stats; the page is a static shell."""
-    if user is None:
-        return _to("/login")
-    return _render(request, "trends.html", user, {})
-
-
-@router.get("/reports")
-def reports(request: Request, period: str = Query("week"), conn=Depends(db.get_db),
-            user: User | None = Depends(current_user)):
-    """Weekly or monthly summaries (?period=week|month), newest first."""
-    if user is None:
-        return _to("/login")
-    if period not in service.REPORT_PERIODS:
-        period = "week"
-    return _render(request, "reports.html", user,
-                   {"period": period, "reports": service.reports(conn, user.id, period)})
-
-
-# --- settings (purge old data)
-
-@router.get("/settings")
-def settings(request: Request, before: date | None = Query(None),
-             purged: int | None = Query(None),
-             conn=Depends(db.get_db), user: User | None = Depends(current_user)):
-    """Purge form. With ?before= shows how many readings would go (preview)."""
-    if user is None:
-        return _to("/login")
-    count = service.purge_before(conn, user.id, before, dry_run=True) if before else None
-    return _render(request, "settings.html", user,
-                   {"before": before, "count": count, "purged": purged})
-
-
-@router.post("/settings/purge")
-def settings_purge(before: date = Form(...), conn=Depends(db.get_db),
-                   user: User | None = Depends(current_user)):
-    if user is None:
-        return _to("/login")
-    n = service.purge_before(conn, user.id, before)
-    return _to(f"/settings?purged={n}")
+for _old, _new in _MOVED.items():
+    router.add_api_route(_old, _moved(_new), methods=["GET"], include_in_schema=False)
 
 
 # --- auth (register / login / logout)

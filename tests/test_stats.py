@@ -9,9 +9,10 @@ if "BP_DB" not in os.environ:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import db, service  # noqa: E402
+from app import db  # noqa: E402
+from app.modules.bp import service  # noqa: E402
 from app.main import app  # noqa: E402
-from app.schemas import ReadingIn  # noqa: E402
+from app.modules.bp.schemas import ReadingIn  # noqa: E402
 
 db.init_db()
 _n = itertools.count()
@@ -26,7 +27,7 @@ def _user():
 
 
 def _add(c, taken_at, sys, dia, pulse=None):
-    r = c.post("/api/readings", json={"taken_at": taken_at, "systolic": sys,
+    r = c.post("/api/bp/readings", json={"taken_at": taken_at, "systolic": sys,
                                       "diastolic": dia, "pulse": pulse})
     assert r.status_code == 201, r.text
 
@@ -53,14 +54,14 @@ def test_week_range_bounds():
     _add(c, f"{today - timedelta(days=7)}T23:59", 150, 95)   # just outside 7-day window
     _add(c, f"{today - timedelta(days=6)}T00:00", 120, 80)   # first day inside
     _add(c, f"{today}T07:00", 130, 84, 70)
-    s = c.get("/api/stats", params={"range": "week"}).json()
+    s = c.get("/api/bp/stats", params={"range": "week"}).json()
     assert s["start"] == str(today - timedelta(days=6)) and s["end"] == str(today)
     assert [p["x"] for p in s["points"]] == [str(today - timedelta(days=6)), str(today)]
     assert s["summary"] == {"systolic": 125.0, "diastolic": 82.0, "pulse": 70.0, "count": 2}
 
-    m = c.get("/api/stats", params={"range": "month"}).json()
+    m = c.get("/api/bp/stats", params={"range": "month"}).json()
     assert m["start"] == str(today - timedelta(days=29)) and m["summary"]["count"] == 3
-    q = c.get("/api/stats", params={"range": "3m"}).json()
+    q = c.get("/api/bp/stats", params={"range": "3m"}).json()
     assert q["start"] == str(today - timedelta(days=89))
 
 
@@ -69,7 +70,7 @@ def test_day_range_returns_individual_readings_oldest_first():
     _add(c, "2026-09-15T21:00", 130, 85, 66)
     _add(c, "2026-09-15T07:30", 118, 76)
     _add(c, "2026-09-16T07:30", 119, 77)
-    s = c.get("/api/stats", params={"range": "day", "date": "2026-09-15"}).json()
+    s = c.get("/api/bp/stats", params={"range": "day", "date": "2026-09-15"}).json()
     assert [p["x"] for p in s["points"]] == ["2026-09-15T07:30", "2026-09-15T21:00"]
     assert s["points"][0]["pulse"] is None and s["summary"]["count"] == 2
 
@@ -77,16 +78,16 @@ def test_day_range_returns_individual_readings_oldest_first():
 def test_stats_isolation_and_auth():
     a, b = _user(), _user()
     _add(a, "2026-09-15T07:30", 118, 76)
-    assert b.get("/api/stats", params={"range": "day", "date": "2026-09-15"}).json()["points"] == []
-    assert TestClient(app).get("/api/stats").status_code == 401
-    assert a.get("/api/stats", params={"range": "year"}).status_code == 422
+    assert b.get("/api/bp/stats", params={"range": "day", "date": "2026-09-15"}).json()["points"] == []
+    assert TestClient(app).get("/api/bp/stats").status_code == 401
+    assert a.get("/api/bp/stats", params={"range": "year"}).status_code == 422
 
 
 def test_trends_page():
     c = _user()
-    r = c.get("/trends")
+    r = c.get("/bp/trends")
     assert r.status_code == 200 and "bp-chart" in r.text and "chart.umd.min.js" in r.text
-    assert TestClient(app).get("/trends", follow_redirects=False).headers["location"] == "/login"
+    assert TestClient(app).get("/bp/trends", follow_redirects=False).headers["location"] == "/login"
     # zone legend + thresholds the chart colours by; no MAP line any more
     for text in ("≤120", "121–129", "130–139", "140+", "≤80", "81–90", "91+",
                  'SYS_ZONES = [[121, "--z-good"', 'DIA_ZONES = [[81, "--z-good"'):

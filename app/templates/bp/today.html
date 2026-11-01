@@ -10,7 +10,7 @@
 <section class="panel">
   <h2>Add reading</h2>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post" action="/readings">
+  <form method="post" action="/bp/readings">
     <div class="bp-grid">
       <label>Systolic
         <input type="number" name="systolic" inputmode="numeric" min="50" max="260" required
@@ -43,7 +43,7 @@
     <h2>Today's readings <span class="muted">({{ readings|length }})</span></h2>
   </div>
   {% if readings %}
-    {% with items=readings, next="/" %}{% include "_reading_list.html" %}{% endwith %}
+    {% with items=readings, next="/bp" %}{% include "bp/_reading_list.html" %}{% endwith %}
   {% else %}
     <p class="muted">Nothing logged today.</p>
   {% endif %}

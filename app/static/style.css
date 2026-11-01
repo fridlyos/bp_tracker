@@ -113,6 +113,7 @@ body { -webkit-tap-highlight-color: transparent; }
   font-weight: 600; padding: .55rem .6rem; border-radius: 8px; min-height: 2.75rem; }
 .tabbar a:hover { background: var(--surface-subtle); color: var(--text-strong); }
 .tabbar a.active { background: var(--primary); color: var(--on-primary); }
+.tabbar .tab-home { margin-bottom: .4rem; }
 .tabbar svg { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor;
   stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 main { flex: 1 1 auto; min-width: 0; max-width: 640px; margin: 0; padding: 1rem; position: relative; }
@@ -239,10 +240,11 @@ dialog::backdrop { background: var(--backdrop); }
     padding: .35rem .1rem; min-height: 3rem; font-size: .68rem; font-weight: 600; color: var(--muted);
     border-radius: 10px; }
   .tabbar a.active { background: transparent; color: var(--primary); }
+  .tabbar .tab-home { margin-bottom: 0; }
   .tabbar a:hover { background: transparent; }
   .tabbar svg { width: 24px; height: 24px; }
   main { padding: 1rem calc(1rem + env(safe-area-inset-right)) 1rem calc(1rem + env(safe-area-inset-left)); }
-  body.signed-in main { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  body.has-tabbar main { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
   .user-menu .role { display: none; }
   /* thumb-sized primary actions */
   main .dialog-actions button { flex: 1 1 auto; min-height: 3rem; font-size: 1.05rem; font-weight: 600;
@@ -355,3 +357,29 @@ dialog::backdrop { background: var(--backdrop); }
 .zone-counts { display: flex; flex-wrap: wrap; gap: .2rem .9rem; margin: 0; padding: 0; list-style: none;
   font-size: .82rem; }
 .zone-counts li { display: inline-flex; align-items: center; gap: .35rem; }
+
+/* --- modules: breadcrumb + launcher */
+.crumbs { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.crumb-sep { color: var(--muted-soft); }
+.topbar .crumb { color: var(--muted); font-weight: 600; font-size: .95rem; text-decoration: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layout:not(:has(.tabbar)) main { max-width: 52rem; margin: 0 auto; }
+.launcher { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .8rem; }
+.tile { display: flex; align-items: center; gap: .9rem; min-height: 5rem; padding: .9rem 1rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  color: var(--text); text-decoration: none; transition: border-color .15s, transform .1s; }
+.tile:hover { border-color: var(--primary); }
+.tile:active { transform: scale(.98); }
+.tile-icon { flex: 0 0 auto; width: 3.25rem; height: 3.25rem; display: grid; place-items: center;
+  border-radius: 12px; background: var(--primary); color: var(--on-primary); }
+.tile-admin .tile-icon { background: var(--surface-subtle); color: var(--text-strong);
+  border: 1px solid var(--border); }
+.tile-icon svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; }
+.tile-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.tile-name { font-weight: 700; font-size: 1.05rem; color: var(--text-strong); }
+.tile-desc { font-size: .86rem; color: var(--muted); }
+@media (max-width: 640px) {
+  .launcher { grid-template-columns: 1fr; }
+  .topbar .brand { white-space: nowrap; }
+}

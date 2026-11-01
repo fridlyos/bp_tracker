@@ -38,7 +38,7 @@ def test_stale_cookie_does_not_inherit_reused_id():
 
     r = old.get("/", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/login"
-    assert old.get("/api/readings").status_code == 401
+    assert old.get("/api/bp/readings").status_code == 401
 
 
 def test_login_error_names_the_problem():
