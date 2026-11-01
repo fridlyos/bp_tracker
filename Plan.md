@@ -84,3 +84,6 @@ normal band is still open.
 
 ### Later (only if wanted)
 - CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
+- Reports: basic weekly or monthly summary (user picks the period). Per
+  period: number of readings, average / min / max for systolic, diastolic and
+  pulse, and how many readings fell in each BP zone.
