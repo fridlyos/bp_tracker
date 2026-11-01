@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ "Edit medication" if edit else "Add medication" }}</h1>
+    <p class="page-subtitle"><a href="/meds/manage">← Medications</a></p>
+  </div>
+</div>
+
+{% set f = form or ({"name": edit.name, "dose": edit.dose or "", "notes": edit.notes or "", "times": edit.times} if edit else {"name": "", "dose": "", "notes": "", "times": []}) %}
+<section class="panel">
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ '/meds/manage/' ~ edit.id if edit else '/meds/manage' }}">
+    <label>Name
+      <input name="name" maxlength="80" required value="{{ f.name }}" placeholder="e.g. Lisinopril">
+    </label>
+    <label>Dose <span class="muted">(optional)</span>
+      <input name="dose" maxlength="80" value="{{ f.dose }}" placeholder="e.g. 10 mg, 1 tablet">
+    </label>
+    <fieldset class="med-times">
+      <legend>Times each day <span class="muted">(leave empty for “as needed”)</span></legend>
+      <div class="time-grid">
+        {% for i in range(max_times) %}
+        {% set t = f.times[i] if i < f.times|length else "" %}
+        <input type="time" name="times" value="{{ t }}" aria-label="Time {{ i + 1 }}"
+               {% if not t and i > f.times|length %}data-extra hidden{% endif %}>
+        {% endfor %}
+      </div>
+      <button type="button" class="link-button" data-more-times>+ another time</button>
+    </fieldset>
+    <label>Notes <span class="muted">(optional)</span>
+      <input name="notes" maxlength="300" value="{{ f.notes }}" placeholder="e.g. with food">
+    </label>
+    <div class="dialog-actions">
+      <a class="button-link secondary" href="/meds/manage">Cancel</a>
+      <button type="submit">{{ "Save changes" if edit else "Add medication" }}</button>
+    </div>
+  </form>
+</section>
+
+
+<script>
+  // reveal one more empty time field per tap (all fields work without JS too)
+  (function () {
+    const more = document.querySelector("[data-more-times]");
+    const next = () => document.querySelector(".time-grid input[data-extra][hidden]");
+    if (!more) return;
+    more.hidden = !next();
+    more.addEventListener("click", () => { const i = next(); if (i) { i.hidden = false; i.focus(); } more.hidden = !next(); });
+  })();
+</script>
+{% endblock %}

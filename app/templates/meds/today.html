@@ -3,14 +3,14 @@
 <div class="page-head">
   <div>
     <h1>Today</h1>
-    <p class="page-subtitle">{{ now.strftime("%A, %B %-d") }}</p>
+    <p class="page-subtitle">{{ now.strftime("%A, %B %-d") }} · <a href="/meds/history">History</a></p>
   </div>
 </div>
 
 {% if not has_meds %}
 <section class="panel">
   <p>No medications yet.</p>
-  <p><a href="/meds/manage">Add your first medication</a> with the times you take it, and you'll get a reminder at each time.</p>
+  <p><a href="/meds/manage/new">Add your first medication</a> with the times you take it, and you'll get a reminder at each time.</p>
 </section>
 {% else %}
 

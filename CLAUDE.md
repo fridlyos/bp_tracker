@@ -79,10 +79,12 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
   in `trends.html`.
 
 Medications module (`app/modules/meds/`, templates in `app/templates/meds/`):
-- Pages under `/meds`: Today (checklist of today's slots: Taken / Skip / Undo,
-  plus "as needed" meds with Log dose), `/meds/history` (last 30 days),
-  `/meds/manage` (add/edit, pause = hidden + no reminders but history kept,
-  delete = removes history). JSON under `/api/meds` (list, today, doses).
+- Two screens (two tabs): Today `/meds` (checklist of today's slots: Taken /
+  Skip / Undo, plus "as needed" meds with Log dose; links to `/meds/history`,
+  last 30 days) and Medications `/meds/manage` (the list only: Edit, Pause =
+  hidden + no reminders but history kept, Delete = removes history; "+ Add
+  medication"). Add/edit is its own form page: `/meds/manage/new`,
+  `/meds/manage/{id}`. JSON under `/api/meds` (list, today, doses).
 - Tables (`0003_meds`): `meds` (name, dose text, notes, tz, active),
   `med_times` (`HH:MM`, `last_reminded`), `med_doses` (slot
   `scheduled_for` 'YYYY-MM-DDTHH:MM' or NULL for as-needed, status

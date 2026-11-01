@@ -402,6 +402,9 @@ a.button-link { display: inline-flex; align-items: center; justify-content: cent
   color: var(--text); text-decoration: none; font-size: 1rem; }
 a.button-link:hover { background: var(--surface-subtle); }
 a.button-link.compact { padding: .3rem .55rem; font-size: .85rem; }
+a.button-link.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 600; min-height: 2.75rem; }
+a.button-link.primary:hover { background: var(--primary-hover); }
+.page-head > a.button-link { flex: 0 0 auto; min-height: 2.75rem; }
 .dose-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .75rem; }
 .dose-list li:not(:has(.dose-time)) { grid-template-columns: minmax(0, 1fr) auto; }
 .dose-time { font-variant-numeric: tabular-nums; font-weight: 650; color: var(--text-strong); min-width: 3rem; }

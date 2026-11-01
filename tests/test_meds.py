@@ -150,3 +150,23 @@ def test_launcher_shows_meds_icon():
     c = _user()
     assert 'class="app-icon" href="/meds" aria-label="Medications"' in c.get("/").text
     assert 'aria-label="Medications"' in c.get("/meds/manage").text  # module tab bar
+
+
+def test_two_screens_list_and_today():
+    c = _user()
+    lst = c.get("/meds/manage").text
+    # Medications screen: list + Add button, no form on it
+    assert 'href="/meds/manage/new"' in lst and 'name="name"' not in lst and "No medications yet" in lst
+    form = c.get("/meds/manage/new").text
+    assert 'action="/meds/manage"' in form and 'name="times"' in form
+    m = _add(c, "Lisinopril", ["08:00"])
+    edit = c.get(f"/meds/manage/{m['id']}").text
+    assert f'action="/meds/manage/{m["id"]}"' in edit and 'value="Lisinopril"' in edit
+    assert c.get("/meds/manage/99999", follow_redirects=False).headers["location"] == "/meds/manage"
+    # module nav: exactly two tabs (Today, Medications); History is a link from Today
+    today = c.get("/meds").text
+    nav = today.split('aria-label="Medications">')[1].split("</nav>")[0]
+    assert nav.count("<a ") == 3  # Home + 2 tabs
+    assert 'href="/meds"' in nav and 'href="/meds/manage"' in nav and "/meds/history" not in nav
+    assert 'href="/meds/history"' in today
+    assert c.get("/meds/history").status_code == 200
