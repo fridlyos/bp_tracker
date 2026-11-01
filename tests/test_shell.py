@@ -44,3 +44,11 @@ def test_signed_out_has_no_tabbar_and_iphone_meta():
     html = TestClient(app).get("/login").text
     assert 'class="tabbar"' not in html and "data-theme-toggle" in html
     assert "viewport-fit=cover" in html and "apple-mobile-web-app-capable" in html
+
+
+def test_static_assets_are_versioned_by_content():
+    c = TestClient(app)
+    html = c.get("/login").text
+    href = html.split('rel="stylesheet" href="')[1].split('"')[0]
+    assert href.startswith("/static/style.css?v=") and len(href.split("v=")[1]) == 10
+    assert c.get(href).status_code == 200

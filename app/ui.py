@@ -1,4 +1,6 @@
 """Template rendering shared by core and module pages."""
+import hashlib
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi.responses import RedirectResponse
@@ -6,8 +8,23 @@ from fastapi.templating import Jinja2Templates
 
 APP_NAME = "My Apps"  # top bar + launcher title; each module has its own name
 
+_STATIC = Path(__file__).parent / "static"
+
+
+@lru_cache(maxsize=None)
+def static_url(name: str) -> str:
+    """'/static/<name>?v=<content hash>': a deploy that changes the file changes
+    the URL, so iPhone Safari can't keep serving a stale cached copy."""
+    try:
+        digest = hashlib.sha256((_STATIC / name).read_bytes()).hexdigest()[:10]
+    except OSError:
+        return f"/static/{name}"
+    return f"/static/{name}?v={digest}"
+
+
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.globals["APP_NAME"] = APP_NAME
+templates.env.globals["static_url"] = static_url
 
 
 def module_for(path: str):

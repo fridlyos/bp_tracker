@@ -5,7 +5,7 @@
   <!-- viewport-fit=cover: draw under the notch / home bar; safe-area padding in CSS -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% if module %}{{ module.name }} · {% endif %}{{ APP_NAME }}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{{ static_url('style.css') }}">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="#f8fafc">
   <link rel="apple-touch-icon" href="/static/icon-192.png">

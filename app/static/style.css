@@ -411,16 +411,17 @@ a.button-link.primary:hover { background: var(--primary-hover); }
 .dose-actions, .med-actions { display: inline-flex; align-items: center; gap: .4rem; }
 .dose-actions form.inline, .med-actions form.inline, .dose-list form.inline { margin: 0; display: inline-flex; gap: .4rem; }
 .dose-actions button { min-height: 2.75rem; min-width: 3.5rem; }
-/* round icon buttons: 32px circle drawn inside a 44px tap target */
-.icon-btn { width: 2.75rem; height: 2.75rem; padding: 0; display: inline-grid; place-items: center;
-  border: .375rem solid transparent; border-radius: 50%; background: var(--surface); background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px var(--border); color: var(--text); cursor: pointer; text-decoration: none; }
-.icon-btn:hover { background: var(--surface-subtle); background-clip: padding-box; }
-.icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+/* round icon buttons: 48px circle, 26px icon, always side by side */
+.icon-btn { flex: 0 0 auto; width: 3rem; height: 3rem; padding: 0; margin: 0; display: inline-grid;
+  place-items: center; border: 1.5px solid var(--input-border); border-radius: 50%;
+  background: var(--surface); color: var(--text-strong); cursor: pointer; text-decoration: none; }
+.icon-btn:hover { background: var(--surface-subtle); }
+.icon-btn svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; }
-.icon-btn.danger-icon { color: var(--danger); }
-.icon-btn.danger-icon:hover { background: var(--danger); background-clip: padding-box; color: var(--surface); box-shadow: none; }
-.med-actions { gap: .1rem; }
+.icon-btn.danger-icon { color: var(--danger); border-color: currentColor; }
+.icon-btn.danger-icon:hover { background: var(--danger); color: var(--surface); border-color: var(--danger); }
+.med-actions { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: .5rem; }
+.med-actions form.inline { display: contents; }
 .dose-badge { font-weight: 650; }
 .dose-badge.taken { color: var(--success); }
 .dose-badge.skipped { color: var(--muted); }
