@@ -1,6 +1,6 @@
 {
-  "name": "BP Tracker",
-  "short_name": "BP",
+  "name": "My Apps",
+  "short_name": "My Apps",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
