@@ -20,14 +20,23 @@
         </span>
       </span>
       <span class="med-actions">
-        <a class="button-link secondary compact" href="/meds/manage/{{ m.id }}">Edit</a>
+        {# three identical round icon buttons; name in aria-label + tooltip #}
+        <a class="icon-btn" href="/meds/manage/{{ m.id }}" aria-label="Edit {{ m.name }}" title="Edit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></a>
         <form method="post" action="/meds/manage/{{ m.id }}/active" class="inline">
           <input type="hidden" name="active" value="{{ 0 if m.active else 1 }}">
-          <button type="submit" class="secondary compact">{{ "Pause" if m.active else "Resume" }}</button>
+          {% if m.active %}
+          <button type="submit" class="icon-btn" aria-label="Pause {{ m.name }}" title="Pause (no reminders)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg></button>
+          {% else %}
+          <button type="submit" class="icon-btn" aria-label="Resume {{ m.name }}" title="Resume">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+          {% endif %}
         </form>
         <form method="post" action="/meds/manage/{{ m.id }}/delete" class="inline"
               data-confirm="Delete {{ m.name }} and its whole history? Pause keeps the history.">
-          <button type="submit" class="x-delete" aria-label="Delete {{ m.name }}" title="Delete">&times;</button>
+          <button type="submit" class="icon-btn danger-icon" aria-label="Delete {{ m.name }}" title="Delete">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         </form>
       </span>
     </li>

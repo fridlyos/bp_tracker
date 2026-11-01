@@ -170,3 +170,15 @@ def test_two_screens_list_and_today():
     assert 'href="/meds"' in nav and 'href="/meds/manage"' in nav and "/meds/history" not in nav
     assert 'href="/meds/history"' in today
     assert c.get("/meds/history").status_code == 200
+
+
+def test_list_actions_are_matching_icon_buttons():
+    c = _user()
+    m = _add(c, "Aspirin", ["08:00"])
+    html = c.get("/meds/manage").text
+    row = html.split('class="med-actions"')[1].split("</li>")[0]
+    assert row.count('class="icon-btn') == 3
+    for label in ("Edit Aspirin", "Pause Aspirin", "Delete Aspirin"):
+        assert f'aria-label="{label}"' in row
+    c.post(f"/meds/manage/{m['id']}/active", data={"active": 0})
+    assert 'aria-label="Resume Aspirin"' in c.get("/meds/manage").text
