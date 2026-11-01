@@ -58,3 +58,10 @@ def stats(request: Request, range_: Literal["day", "week", "month", "3m"] = Quer
     """Chart data. day -> that day's readings (?date=, default today);
     week/month/3m -> daily averages over the last 7/30/90 days."""
     return service.stats(conn, uid, range_, clock.local_today(request), day)
+
+
+@router.get("/reports")
+def reports(period: Literal["week", "month"] = Query("week"),
+            uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    """Weekly (Mon–Sun) or monthly summaries, newest first."""
+    return {"period": period, "reports": service.reports(conn, uid, period)}

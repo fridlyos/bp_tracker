@@ -211,3 +211,75 @@ def stats(conn, user_id: int, range_: str, today: date, day: date | None = None)
         raise ValueError(f"unknown range {range_!r}")
     return {"range": range_, "start": start.isoformat(), "end": end.isoformat(),
             "points": points, "summary": _summary(conn, user_id, start, end)}
+
+
+# --- reports (weekly / monthly summaries)
+
+# Owner's BP zones, mirrored from trends.html: (upper bound inclusive, label, css token).
+SYS_ZONES = [(120, "≤120", "--z-good"), (129, "121–129", "--z-sys-ok"),
+             (139, "130–139", "--z-warn"), (None, "140+", "--z-high")]
+DIA_ZONES = [(80, "≤80", "--z-good"), (90, "81–90", "--z-warn"), (None, "91+", "--z-high")]
+REPORT_PERIODS = ("week", "month")
+
+
+def _period_bounds(day: date, period: str) -> tuple[date, date]:
+    """First and last day of the week (Monday start) or calendar month holding `day`."""
+    if period == "week":
+        start = day - timedelta(days=day.weekday())
+        return start, start + timedelta(days=6)
+    start = day.replace(day=1)
+    nxt = (start + timedelta(days=32)).replace(day=1)
+    return start, nxt - timedelta(days=1)
+
+
+def _period_label(start: date, end: date, period: str) -> str:
+    if period == "month":
+        return start.strftime("%B %Y")
+    if start.year != end.year:
+        return f"{start:%b} {start.day}, {start.year} – {end:%b} {end.day}, {end.year}"
+    if start.month != end.month:
+        return f"{start:%b} {start.day} – {end:%b} {end.day}, {end.year}"
+    return f"{start:%b} {start.day}–{end.day}, {end.year}"
+
+
+def _min_avg_max(values: list[int]) -> dict | None:
+    if not values:
+        return None
+    return {"avg": round(sum(values) / len(values), 1), "min": min(values), "max": max(values)}
+
+
+def _zone_counts(values: list[int], zones) -> list[dict]:
+    counts = []
+    for i, (hi, label, token) in enumerate(zones):
+        lo = zones[i - 1][0] if i else None
+        n = sum(1 for v in values if (lo is None or v > lo) and (hi is None or v <= hi))
+        counts.append({"label": label, "token": token, "count": n})
+    return counts
+
+
+def reports(conn, user_id: int, period: str) -> list[dict]:
+    """One summary per week (Mon–Sun) or calendar month that has readings,
+    newest first: reading count, avg/min/max of systolic, diastolic and pulse
+    (pulse over readings that have one), and readings per BP zone."""
+    if period not in REPORT_PERIODS:
+        raise ValueError(f"unknown period {period!r}")
+    groups: dict[date, list[Reading]] = {}
+    for r in list_readings(conn, user_id):  # newest first, so groups come out newest first
+        start, _ = _period_bounds(date.fromisoformat(r.taken_at[:10]), period)
+        groups.setdefault(start, []).append(r)
+    out = []
+    for start, rs in groups.items():
+        _, end = _period_bounds(start, period)
+        sys_ = [r.systolic for r in rs]
+        dia = [r.diastolic for r in rs]
+        out.append({
+            "start": start.isoformat(), "end": end.isoformat(),
+            "label": _period_label(start, end, period),
+            "count": len(rs),
+            "days": len({r.taken_at[:10] for r in rs}),
+            "systolic": _min_avg_max(sys_), "diastolic": _min_avg_max(dia),
+            "pulse": _min_avg_max([r.pulse for r in rs if r.pulse is not None]),
+            "systolic_zones": _zone_counts(sys_, SYS_ZONES),
+            "diastolic_zones": _zone_counts(dia, DIA_ZONES),
+        })
+    return out

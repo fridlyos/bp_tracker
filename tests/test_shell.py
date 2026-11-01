@@ -19,7 +19,7 @@ def test_username_shown_on_every_page():
     c = TestClient(app)
     name = f"shell{next(_n)}-{os.getpid()}"
     c.post("/register", data={"username": name, "password": "pw"})
-    for path in ("/", "/trends", "/history", "/settings"):
+    for path in ("/", "/trends", "/reports", "/history", "/settings"):
         html = c.get(path).text
         assert f'aria-label="Account: {name}"' in html, path
         assert f"<b>{name}</b>" in html and 'action="/logout"' in html, path

@@ -140,6 +140,18 @@ def trends(request: Request, user: User | None = Depends(current_user)):
     return _render(request, "trends.html", user, {})
 
 
+@router.get("/reports")
+def reports(request: Request, period: str = Query("week"), conn=Depends(db.get_db),
+            user: User | None = Depends(current_user)):
+    """Weekly or monthly summaries (?period=week|month), newest first."""
+    if user is None:
+        return _to("/login")
+    if period not in service.REPORT_PERIODS:
+        period = "week"
+    return _render(request, "reports.html", user,
+                   {"period": period, "reports": service.reports(conn, user.id, period)})
+
+
 # --- settings (purge old data)
 
 @router.get("/settings")

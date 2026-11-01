@@ -338,3 +338,20 @@ dialog::backdrop { background: var(--backdrop); }
   .stat-value { font-size: 1.25rem; }
   .chart-box-tall { height: 220px; }
 }
+
+/* --- reports */
+.report-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: .7rem .9rem .9rem; }
+.report-card .section-head { flex-wrap: wrap; gap: .2rem .8rem; }
+.report-card .section-head h2 { margin: .2rem 0; font-size: 1.05rem; }
+.report-table td { font-variant-numeric: tabular-nums; }
+.report-table th[scope="row"] { text-transform: none; font-size: .9rem; color: var(--text-strong); font-weight: 600; }
+.report-table th[scope="row"] .muted { font-weight: 400; font-size: .78rem; }
+.zone-summary { display: flex; flex-direction: column; gap: .7rem; margin-top: .8rem; }
+.zone-row .zone-name { font-size: .82rem; font-weight: 600; color: var(--muted); }
+.zone-bar { display: flex; gap: 2px; height: 10px; margin: .3rem 0; border-radius: 5px; overflow: hidden;
+  background: var(--border); }
+.zone-bar i { display: block; min-width: 4px; }
+.zone-counts { display: flex; flex-wrap: wrap; gap: .2rem .9rem; margin: 0; padding: 0; list-style: none;
+  font-size: .82rem; }
+.zone-counts li { display: inline-flex; align-items: center; gap: .35rem; }

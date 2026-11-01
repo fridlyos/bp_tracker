@@ -82,8 +82,13 @@ normal band is still open.
 - Live at https://bp-tracker-fridl.fly.dev/
 - Add to iPhone home screen (manual: Safari → Share → Add to Home Screen).
 
+### Phase 5 — Reports (done)
+- `/reports?period=week|month` (nav tab) + `GET /api/reports`. One card per
+  week (Mon–Sun) or calendar month with readings, newest first: reading and
+  day counts, avg / min / max for systolic, diastolic, pulse, and readings per
+  BP zone (same thresholds as Trends) as a stacked bar + counts and %.
+- `service.reports()` groups in Python; tests in `tests/test_reports.py`.
+
 ### Later (only if wanted)
 - CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
-- Reports: basic weekly or monthly summary (user picks the period). Per
-  period: number of readings, average / min / max for systolic, diastolic and
-  pulse, and how many readings fell in each BP zone.
+

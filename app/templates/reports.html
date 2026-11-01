@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="viz-root">
+<div class="page-head">
+  <div>
+    <h1>Reports</h1>
+    <p class="page-subtitle">{{ "Weekly (Monday–Sunday)" if period == "week" else "Monthly" }} summaries, newest first.</p>
+  </div>
+</div>
+
+<form class="range-row" method="get" action="/reports">
+  <div class="range-tabs" role="group" aria-label="Report period">
+    {% for value, label in [("week", "Weekly"), ("month", "Monthly")] %}
+    <button type="submit" name="period" value="{{ value }}" aria-pressed="{{ 'true' if period == value else 'false' }}"
+      {% if period != value %}class="secondary"{% endif %}>{{ label }}</button>
+    {% endfor %}
+  </div>
+</form>
+
+{% macro zone_bar(name, zones, total) %}
+<div class="zone-row">
+  <span class="zone-name">{{ name }}</span>
+  <div class="zone-bar" aria-hidden="true">
+    {% for z in zones if z.count %}<i style="flex: {{ z.count }}; background: var({{ z.token }})"></i>{% endfor %}
+  </div>
+  <ul class="zone-counts">
+    {% for z in zones %}
+    <li{% if not z.count %} class="muted"{% endif %}><i class="line-key" style="background: var({{ z.token }})"></i>{{ z.label }}: <b>{{ z.count }}</b>{% if z.count %} <span class="muted">({{ (100 * z.count / total)|round|int }}%)</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endmacro %}
+
+{% for r in reports %}
+<section class="panel report-card">
+  <div class="section-head">
+    <h2>{{ r.label }}</h2>
+    <span class="muted">{{ r.count }} reading{{ "" if r.count == 1 else "s" }} · {{ r.days }} day{{ "" if r.days == 1 else "s" }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="report-table">
+      <thead><tr><th scope="col"></th><th scope="col">Avg</th><th scope="col">Min</th><th scope="col">Max</th></tr></thead>
+      <tbody>
+        {% for key, label, unit in [("systolic", "Systolic", "mmHg"), ("diastolic", "Diastolic", "mmHg"), ("pulse", "Pulse", "bpm")] %}
+        {% set s = r[key] %}
+        <tr>
+          <th scope="row">{{ label }} <span class="muted">{{ unit }}</span></th>
+          {% if s %}<td>{{ s.avg }}</td><td>{{ s.min }}</td><td>{{ s.max }}</td>
+          {% else %}<td class="muted" colspan="3">no data</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="zone-summary">
+    {{ zone_bar("Systolic", r.systolic_zones, r.count) }}
+    {{ zone_bar("Diastolic", r.diastolic_zones, r.count) }}
+  </div>
+</section>
+{% else %}
+<section class="panel"><p class="muted">No readings yet. <a href="/">Add one</a>.</p></section>
+{% endfor %}
+</div>
+{% endblock %}
