@@ -63,4 +63,4 @@ def test_non_admin_cannot_open_users_page():
 def test_static_and_sw_served():
     c = _client()
     assert c.get("/sw.js").status_code == 200
-    assert c.get("/static/manifest.webmanifest").json()["short_name"] == "BP"
+    assert c.get("/static/manifest.webmanifest").json()["short_name"] == "My Apps"
