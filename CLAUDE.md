@@ -58,5 +58,7 @@ Jinja2 UI, installable PWA, deployed on Fly.io. Setup mirrors `../lose_weight`.
 ## Commands
 
 - `uv run pytest` — tests (use throwaway DB via `BP_DB`).
+- Deploy: push/merge to `main` -> `.github/workflows/deploy.yml` runs tests, then
+  `flyctl deploy` (repo secret `FLY_API_TOKEN`). Manual: `flyctl deploy`.
 - `./start.sh` or `uv run uvicorn app.main:app --reload` — local server on :8000.
 - Env: `BP_DB` (default `bp.db`), `SECRET_KEY`, `COOKIE_SECURE`, `ADMIN_PASSWORD`, `LOG_LEVEL`.

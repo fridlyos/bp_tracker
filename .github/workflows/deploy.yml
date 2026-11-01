@@ -1,0 +1,24 @@
+# Test, then deploy to Fly.io on every push to main.
+# Needs repo secret FLY_API_TOKEN (fly tokens create deploy -a bp-tracker-fridl).
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:          # manual run from the Actions tab
+concurrency: deploy           # one deploy at a time
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run pytest -q
+        env: { BP_DB: /tmp/test.db }
+  deploy:
+    needs: test                # failing tests block the deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env: { FLY_API_TOKEN: "${{ secrets.FLY_API_TOKEN }}" }
