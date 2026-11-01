@@ -2,16 +2,23 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>Medications</h1>
+    <h1>Medications &amp; supplements</h1>
     <p class="page-subtitle">What you take and when. You get a reminder at each time.</p>
   </div>
-  <a class="button-link primary" href="/meds/manage/new">+ Add medication</a>
+</div>
+<div class="add-row">
+  <a class="button-link primary" href="/meds/manage/new">+ Medication</a>
+  <a class="button-link primary" href="/meds/manage/new?kind=supplement">+ Supplement</a>
 </div>
 
 {% if meds %}
+{% for kind, title in [("medication", "Medications"), ("supplement", "Supplements")] %}
+{% set items = meds|selectattr("kind", "equalto", kind)|list %}
+{% if items %}
 <section class="panel">
+  <h2>{{ title }}</h2>
   <ul class="entry-list med-list">
-    {% for m in meds %}
+    {% for m in items %}
     <li class="{{ '' if m.active else 'med-paused' }}">
       <span class="entry-main">
         <span class="entry-name">{{ m.name }}{% if m.dose %} <span class="muted">{{ m.dose }}</span>{% endif %}</span>
@@ -43,9 +50,11 @@
     {% endfor %}
   </ul>
 </section>
+{% endif %}
+{% endfor %}
 {% else %}
 <section class="panel">
-  <p class="muted">No medications yet. Add one with its daily times; leave the times empty for “as needed”.</p>
+  <p class="muted">Nothing here yet. Add a medication or supplement with its daily times; leave the times empty for “as needed”.</p>
 </section>
 {% endif %}
 {% endblock %}

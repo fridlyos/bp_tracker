@@ -24,7 +24,7 @@ def _iso(dt: datetime) -> str:
 def _med(conn, row) -> Med:
     times = [r[0] for r in conn.execute(
         "SELECT at_time FROM med_times WHERE med_id = ? ORDER BY at_time", (row["id"],))]
-    return Med(id=row["id"], name=row["name"], dose=row["dose"], notes=row["notes"],
+    return Med(id=row["id"], name=row["name"], kind=row["kind"], dose=row["dose"], notes=row["notes"],
                tz=row["tz"], active=bool(row["active"]), times=times)
 
 
@@ -44,11 +44,11 @@ def save_med(conn, user_id: int, m: MedIn, tz: str, med_id: int | None = None) -
     replaced; a time that stays keeps its reminder state."""
     if med_id is None:
         med_id = conn.execute(
-            "INSERT INTO meds (user_id, name, dose, notes, tz) VALUES (?,?,?,?,?)",
-            (user_id, m.name, m.dose, m.notes, tz)).lastrowid
+            "INSERT INTO meds (user_id, name, kind, dose, notes, tz) VALUES (?,?,?,?,?,?)",
+            (user_id, m.name, m.kind, m.dose, m.notes, tz)).lastrowid
     else:
-        cur = conn.execute("UPDATE meds SET name=?, dose=?, notes=?, tz=? WHERE id=? AND user_id=?",
-                           (m.name, m.dose, m.notes, tz, med_id, user_id))
+        cur = conn.execute("UPDATE meds SET name=?, kind=?, dose=?, notes=?, tz=? WHERE id=? AND user_id=?",
+                           (m.name, m.kind, m.dose, m.notes, tz, med_id, user_id))
         if cur.rowcount == 0:
             return None
     marks = ",".join("?" * len(m.times))
@@ -127,7 +127,7 @@ def history(conn, user_id: int, days: int = 30, today: date | None = None) -> li
     """Logged doses grouped by day (newest first) for the last `days` days."""
     since = ((today or date.today()) - timedelta(days=days - 1)).isoformat()
     rows = conn.execute(
-        "SELECT d.*, m.name, m.dose FROM med_doses d JOIN meds m ON m.id = d.med_id"
+        "SELECT d.*, m.name, m.kind, m.dose FROM med_doses d JOIN meds m ON m.id = d.med_id"
         " WHERE d.user_id = ? AND COALESCE(d.scheduled_for, d.logged_at) >= ?"
         " ORDER BY COALESCE(d.scheduled_for, d.logged_at) DESC, m.name",
         (user_id, since)).fetchall()
@@ -153,7 +153,7 @@ def due_reminders(conn, now_utc: datetime) -> list[dict]:
     due = []
     rows = conn.execute(
         "SELECT t.id AS time_id, t.at_time, t.last_reminded, m.id AS med_id, m.user_id,"
-        " m.name, m.dose, m.tz FROM med_times t JOIN meds m ON m.id = t.med_id"
+        " m.name, m.kind, m.dose, m.tz FROM med_times t JOIN meds m ON m.id = t.med_id"
         " WHERE m.active = 1").fetchall()
     for r in rows:
         now = _local(now_utc, r["tz"])
@@ -168,6 +168,16 @@ def due_reminders(conn, now_utc: datetime) -> list[dict]:
     return due
 
 
+def _count_label(items: list[dict]) -> str:
+    """'2 medications', '1 supplement', '1 medication and 2 supplements'."""
+    parts = []
+    for kind in ("medication", "supplement"):
+        n = sum(1 for i in items if i["kind"] == kind)
+        if n:
+            parts.append(f"{n} {kind}{'' if n == 1 else 's'}")
+    return " and ".join(parts)
+
+
 def send_reminders(conn, now_utc: datetime) -> None:
     """Scheduler job: one push per user listing every med due now."""
     from ... import push
@@ -176,7 +186,7 @@ def send_reminders(conn, now_utc: datetime) -> None:
         by_user.setdefault(r["user_id"], []).append(r)
     for user_id, items in by_user.items():
         names = [f"{i['name']} ({i['dose']})" if i["dose"] else i["name"] for i in items]
-        title = f"Time for {items[0]['name']}" if len(items) == 1 else f"Time for {len(items)} medications"
+        title = f"Time for {items[0]['name']}" if len(items) == 1 else f"Time for {_count_label(items)}"
         n = push.send_to_user(conn, user_id, title, ", ".join(names) + " · tap to mark taken", "/meds")
         logger.info("med reminder for user %s (%d med(s)) sent to %d device(s)", user_id, len(items), n)
         conn.executemany("UPDATE med_times SET last_reminded = ? WHERE id = ?",

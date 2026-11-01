@@ -9,16 +9,20 @@
 
 {% if not has_meds %}
 <section class="panel">
-  <p>No medications yet.</p>
-  <p><a href="/meds/manage/new">Add your first medication</a> with the times you take it, and you'll get a reminder at each time.</p>
+  <p>Nothing to take yet.</p>
+  <p><a href="/meds/manage/new">Add a medication</a> or <a href="/meds/manage/new?kind=supplement">a supplement</a> with the times you take it, and you'll get a reminder at each time.</p>
 </section>
 {% else %}
 
+{% for kind, title in [("medication", "Medications"), ("supplement", "Supplements")] %}
+{% set sch = plan.scheduled|selectattr("med.kind", "equalto", kind)|list %}
+{% set prn = plan.as_needed|selectattr("med.kind", "equalto", kind)|list %}
+{% if sch or prn %}
 <section class="panel">
-  <h2>Scheduled</h2>
-  {% if plan.scheduled %}
+  <h2>{{ title }}</h2>
+  {% if sch %}
   <ul class="entry-list dose-list">
-    {% for s in plan.scheduled %}
+    {% for s in sch %}
     <li class="dose dose-{{ s.status }}">
       <span class="dose-time">{{ s.time }}</span>
       <span class="entry-main">
@@ -47,16 +51,11 @@
     </li>
     {% endfor %}
   </ul>
-  {% else %}
-  <p class="muted">Nothing scheduled. Medications without times are listed under “As needed”.</p>
   {% endif %}
-</section>
-
-{% if plan.as_needed %}
-<section class="panel">
-  <h2>As needed</h2>
+  {% if prn %}
+  <h3 class="sub-head">As needed</h3>
   <ul class="entry-list dose-list">
-    {% for a in plan.as_needed %}
+    {% for a in prn %}
     <li class="dose">
       <span class="entry-main">
         <span class="entry-name">{{ a.med.name }}</span>
@@ -80,7 +79,12 @@
     </li>
     {% endfor %}
   </ul>
+  {% endif %}
 </section>
+{% endif %}
+{% endfor %}
+{% if not plan.scheduled and not plan.as_needed %}
+<section class="panel"><p class="muted">Everything is paused. Resume items on the <a href="/meds/manage">List</a>.</p></section>
 {% endif %}
 {% endif %}
 {% endblock %}

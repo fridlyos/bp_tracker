@@ -1,14 +1,18 @@
 import re
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 MAX_TIMES = 6
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+Kind = Literal["medication", "supplement"]
+KINDS: tuple[Kind, ...] = ("medication", "supplement")
 
 
 class MedIn(BaseModel):
-    """A medication. No times = taken as needed (no reminders)."""
+    """A medication or supplement. No times = taken as needed (no reminders)."""
     name: str = Field(max_length=80)
+    kind: Kind = "medication"
     dose: str | None = Field(None, max_length=80)
     notes: str | None = Field(None, max_length=300)
     times: list[str] = Field(default_factory=list)
@@ -40,6 +44,7 @@ class MedIn(BaseModel):
 class Med(BaseModel):
     id: int
     name: str
+    kind: Kind = "medication"
     dose: str | None = None
     notes: str | None = None
     tz: str

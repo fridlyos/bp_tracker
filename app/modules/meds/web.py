@@ -9,7 +9,7 @@ from ...deps import current_user
 from ...schemas import User
 from ...ui import redirect, render, safe_next
 from . import service
-from .schemas import MAX_TIMES, MedIn
+from .schemas import KINDS, MAX_TIMES, MedIn
 
 router = APIRouter(prefix="/meds")
 
@@ -63,9 +63,10 @@ def history(request: Request, conn=Depends(db.get_db), user: User | None = Depen
 
 # --- manage
 
-def _form_page(request, user, med=None, form=None, error=None, status=200):
+def _form_page(request, user, med=None, form=None, error=None, status=200, kind="medication"):
     resp = render(request, "meds/form.html", user, {
-        "edit": med, "form": form, "error": error, "max_times": MAX_TIMES})
+        "edit": med, "form": form, "error": error, "max_times": MAX_TIMES,
+        "kind": (form or {}).get("kind") or (med.kind if med else kind)})
     resp.status_code = status
     return resp
 
@@ -79,10 +80,12 @@ def manage(request: Request, conn=Depends(db.get_db), user: User | None = Depend
 
 
 @router.get("/manage/new")
-def manage_new(request: Request, user: User | None = Depends(current_user)):
+def manage_new(request: Request, kind: str = "medication",
+               user: User | None = Depends(current_user)):
+    """Add form; ?kind=supplement preselects the type."""
     if user is None:
         return redirect("/login")
-    return _form_page(request, user)
+    return _form_page(request, user, kind=kind if kind in KINDS else "medication")
 
 
 @router.get("/manage/{med_id}")
@@ -96,13 +99,13 @@ def manage_edit(med_id: int, request: Request, conn=Depends(db.get_db),
     return _form_page(request, user, med=med)
 
 
-def _save(request, conn, user, med_id, name, dose, notes, times):
-    form = {"name": name, "dose": dose, "notes": notes, "times": [t for t in times if t]}
+def _save(request, conn, user, med_id, name, kind, dose, notes, times):
+    form = {"name": name, "kind": kind, "dose": dose, "notes": notes, "times": [t for t in times if t]}
     edit = service.get_med(conn, user.id, med_id) if med_id else None
     if med_id and edit is None:
         return redirect("/meds/manage")
     try:
-        m = MedIn(name=name, dose=dose, notes=notes, times=times)
+        m = MedIn(name=name, kind=kind, dose=dose, notes=notes, times=times)
     except ValidationError as e:
         return _form_page(request, user, edit, form, _error_text(e), 422)
     service.save_med(conn, user.id, m, clock.user_tz(request).key, med_id)
@@ -110,21 +113,22 @@ def _save(request, conn, user, med_id, name, dose, notes, times):
 
 
 @router.post("/manage")
-def manage_create(request: Request, name: str = Form(""), dose: str = Form(""),
+def manage_create(request: Request, name: str = Form(""), kind: str = Form("medication"), dose: str = Form(""),
                   notes: str = Form(""), times: list[str] = Form([]),
                   conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    return _save(request, conn, user, None, name, dose, notes, times)
+    return _save(request, conn, user, None, name, kind, dose, notes, times)
 
 
 @router.post("/manage/{med_id}")
-def manage_update(med_id: int, request: Request, name: str = Form(""), dose: str = Form(""),
+def manage_update(med_id: int, request: Request, name: str = Form(""), kind: str = Form("medication"),
+                  dose: str = Form(""),
                   notes: str = Form(""), times: list[str] = Form([]),
                   conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    return _save(request, conn, user, med_id, name, dose, notes, times)
+    return _save(request, conn, user, med_id, name, kind, dose, notes, times)
 
 
 @router.post("/manage/{med_id}/active")

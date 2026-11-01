@@ -2,8 +2,8 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>{{ "Edit medication" if edit else "Add medication" }}</h1>
-    <p class="page-subtitle"><a href="/meds/manage">← Medications</a></p>
+    <h1>{{ "Edit " if edit else "Add " }}{{ kind }}</h1>
+    <p class="page-subtitle"><a href="/meds/manage">← List</a></p>
   </div>
 </div>
 
@@ -11,8 +11,15 @@
 <section class="panel">
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   <form method="post" action="{{ '/meds/manage/' ~ edit.id if edit else '/meds/manage' }}">
+    <fieldset class="kind-choice">
+      <legend>Type</legend>
+      {% for k, label in [("medication", "Medication"), ("supplement", "Supplement")] %}
+      <label class="kind-option"><input type="radio" name="kind" value="{{ k }}"{% if kind == k %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
     <label>Name
-      <input name="name" maxlength="80" required value="{{ f.name }}" placeholder="e.g. Lisinopril">
+      <input name="name" maxlength="80" required value="{{ f.name }}"
+             placeholder="{{ 'e.g. Vitamin D' if kind == 'supplement' else 'e.g. Lisinopril' }}">
     </label>
     <label>Dose <span class="muted">(optional)</span>
       <input name="dose" maxlength="80" value="{{ f.dose }}" placeholder="e.g. 10 mg, 1 tablet">
@@ -33,7 +40,7 @@
     </label>
     <div class="dialog-actions">
       <a class="button-link secondary" href="/meds/manage">Cancel</a>
-      <button type="submit">{{ "Save changes" if edit else "Add medication" }}</button>
+      <button type="submit">{{ "Save changes" if edit else "Add" }}</button>
     </div>
   </form>
 </section>

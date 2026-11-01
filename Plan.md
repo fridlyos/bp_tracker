@@ -124,6 +124,13 @@ The app is now a hub of modules; blood pressure is the first one.
 - Possible next: refill/stock count, a follow-up nudge if still not taken,
   adherence % per week.
 
+### Phase 9 — Supplements (done)
+- Each item has a type, medication or supplement (`meds.kind`, migration
+  `0004_med_kind`; existing items became medications). Same times, checklist
+  and reminders. List and Today show separate Medications / Supplements
+  sections; "+ Medication" and "+ Supplement" buttons; the List tab is
+  labelled "List". Reminder titles count each kind.
+
 ### Later (only if wanted)
 - BP: CSV export, Apple Health import, morning/evening tagging, alerts on high readings.
 - More modules (e.g. weight, medication) — add a folder under `app/modules/`.

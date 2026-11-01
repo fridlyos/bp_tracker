@@ -18,7 +18,7 @@
     <li class="dose dose-{{ d.status }}">
       <span class="dose-time">{{ (d.scheduled_for or d.logged_at)[11:16] }}</span>
       <span class="entry-main">
-        <span class="entry-name">{{ d.name }}</span>
+        <span class="entry-name">{{ d.name }}{% if d.kind == "supplement" %} <span class="tag">supplement</span>{% endif %}</span>
         <span class="entry-meta">
           {% if d.status == "taken" %}<span class="dose-badge taken">✓ Taken</span>{% if d.scheduled_for %} at {{ d.logged_at[11:16] }}{% else %} · as needed{% endif %}
           {% else %}<span class="dose-badge skipped">Skipped</span>{% endif %}{% if d.dose %} · {{ d.dose }}{% endif %}

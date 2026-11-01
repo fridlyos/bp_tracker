@@ -78,19 +78,22 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
   thresholds live in `service.SYS_ZONES` / `DIA_ZONES` and must match the ones
   in `trends.html`.
 
-Medications module (`app/modules/meds/`, templates in `app/templates/meds/`):
+Medications module (`app/modules/meds/`, templates in `app/templates/meds/`) —
+medications and supplements, kept apart by `meds.kind` (`medication` |
+`supplement`, migration `0004_med_kind`) but scheduled and reminded the same:
 - Two screens (two tabs): Today `/meds` (checklist of today's slots: Taken /
   Skip / Undo, plus "as needed" meds with Log dose; links to `/meds/history`,
-  last 30 days) and Medications `/meds/manage` (the list only: Edit, Pause =
-  hidden + no reminders but history kept, Delete = removes history; "+ Add
-  medication"). Add/edit is its own form page: `/meds/manage/new`,
+  last 30 days) and List `/meds/manage` (Medications and Supplements sections: Edit, Pause =
+  hidden + no reminders but history kept, Delete = removes history; "+
+  Medication" / "+ Supplement", the latter is `/meds/manage/new?kind=supplement`).
+  Today is also split into Medications / Supplements sections. Add/edit is its own form page: `/meds/manage/new`,
   `/meds/manage/{id}`. JSON under `/api/meds` (list, today, doses).
 - Tables (`0003_meds`): `meds` (name, dose text, notes, tz, active),
   `med_times` (`HH:MM`, `last_reminded`), `med_doses` (slot
   `scheduled_for` 'YYYY-MM-DDTHH:MM' or NULL for as-needed, status
   taken|skipped, `logged_at`; unique per med+slot, re-marking replaces).
 - Job `service.send_reminders`: one push per user per minute listing every
-  med due now (in the med's zone, ≤30 min late, once per day per time),
+  item due now (title counts kinds: "Time for 1 medication and 1 supplement") (in the med's zone, ≤30 min late, once per day per time),
   skipping slots already marked (e.g. taken early). Tapping opens `/meds`.
 - Validation: `schemas.MedIn` (name required ≤80, dose ≤80, notes ≤300,
   ≤6 distinct `HH:MM` times; none = as needed).

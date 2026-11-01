@@ -156,7 +156,7 @@ def test_two_screens_list_and_today():
     c = _user()
     lst = c.get("/meds/manage").text
     # Medications screen: list + Add button, no form on it
-    assert 'href="/meds/manage/new"' in lst and 'name="name"' not in lst and "No medications yet" in lst
+    assert 'href="/meds/manage/new"' in lst and 'name="name"' not in lst and "Nothing here yet" in lst
     form = c.get("/meds/manage/new").text
     assert 'action="/meds/manage"' in form and 'name="times"' in form
     m = _add(c, "Lisinopril", ["08:00"])
@@ -182,3 +182,33 @@ def test_list_actions_are_matching_icon_buttons():
         assert f'aria-label="{label}"' in row
     c.post(f"/meds/manage/{m['id']}/active", data={"active": 0})
     assert 'aria-label="Resume Aspirin"' in c.get("/meds/manage").text
+
+
+def test_supplements_are_kept_apart_but_work_the_same(sent):
+    c = _user("UTC")
+    _subscribe(c)
+    r = c.post("/meds/manage", data={"name": "Lisinopril", "kind": "medication", "times": ["08:00"]})
+    c.post("/meds/manage", data={"name": "Vitamin D", "kind": "supplement", "times": ["08:00"]})
+    c.post("/meds/manage", data={"name": "Magnesium", "kind": "supplement", "times": [""]})
+    meds = {m["name"]: m for m in c.get("/api/meds").json()}
+    assert meds["Vitamin D"]["kind"] == "supplement" and meds["Lisinopril"]["kind"] == "medication"
+    assert c.post("/meds/manage", data={"name": "X", "kind": "candy"}).status_code == 422
+    # list: two sections, two add buttons
+    lst = c.get("/meds/manage").text
+    assert "<h2>Medications</h2>" in lst and "<h2>Supplements</h2>" in lst
+    assert lst.index("Lisinopril") < lst.index("<h2>Supplements</h2>") < lst.index("Vitamin D")
+    assert 'href="/meds/manage/new?kind=supplement"' in lst
+    assert 'value="supplement" checked' in c.get("/meds/manage/new?kind=supplement").text
+    # today: sections per kind, as-needed supplements under Supplements
+    today = c.get("/meds").text
+    sup = today.split("<h2>Supplements</h2>")[1]
+    assert "Vitamin D" in sup and "Magnesium" in sup and "Lisinopril" not in sup
+    # same reminder logic; wording counts each kind
+    scheduler.run_jobs_once(datetime(2026, 11, 20, 8, 0, tzinfo=timezone.utc))
+    assert len(sent) == 1 and "Time for 1 medication and 1 supplement" in sent[0]
+    # switching type keeps the item and its schedule
+    vid = meds["Vitamin D"]["id"]
+    c.post(f"/meds/manage/{vid}", data={"name": "Vitamin D", "kind": "medication", "times": ["08:00"]})
+    assert {m["name"]: m["kind"] for m in c.get("/api/meds").json()}["Vitamin D"] == "medication"
+    scheduler.run_jobs_once(datetime(2026, 11, 21, 8, 0, tzinfo=timezone.utc))
+    assert "Time for 2 medications" in sent[1]
