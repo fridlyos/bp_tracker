@@ -5,6 +5,10 @@
     <h1>History</h1>
     <p class="page-subtitle"><a href="/meds">← Today</a> · doses marked in the last 30 days.</p>
   </div>
+  <form method="get" action="/meds" class="inline" aria-label="Fill in a day">
+    <input type="date" name="day" max="{{ today }}" value="{{ today }}" aria-label="Day to fill in" required>
+    <button type="submit" class="secondary compact">Fill in day</button>
+  </form>
 </div>
 
 {% for day, items in days %}
@@ -12,6 +16,7 @@
   <div class="section-head">
     <h2>{{ day }}
       <span class="muted">({{ items|selectattr("status", "equalto", "taken")|list|length }} taken{% set sk = items|selectattr("status", "equalto", "skipped")|list|length %}{% if sk %}, {{ sk }} skipped{% endif %})</span></h2>
+    <a href="/meds?day={{ day }}" class="secondary-link">Edit</a>
   </div>
   <ul class="entry-list dose-list">
     {% for d in items %}
@@ -34,6 +39,6 @@
   </ul>
 </section>
 {% else %}
-<section class="panel"><p class="muted">Nothing marked yet. Mark doses on <a href="/meds">Today</a>.</p></section>
+<section class="panel"><p class="muted">Nothing marked yet. Mark doses on <a href="/meds">Today</a>, or pick a day above to fill it in.</p></section>
 {% endfor %}
 {% endblock %}

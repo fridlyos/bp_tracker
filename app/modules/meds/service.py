@@ -77,7 +77,8 @@ def delete_med(conn, user_id: int, med_id: int) -> None:
 def log_dose(conn, user_id: int, med_id: int, status: str, now: datetime,
              slot: str | None = None) -> bool:
     """Mark a scheduled slot taken/skipped (replacing an earlier mark), or log
-    an as-needed dose (slot None). False if the med isn't the user's."""
+    an as-needed dose (slot None). `now` is stored as logged_at (a past time
+    when filling in an earlier day). False if the med isn't the user's."""
     if get_med(conn, user_id, med_id) is None:
         return False
     if slot is None:
@@ -99,10 +100,15 @@ def undo_dose(conn, user_id: int, dose_id: int) -> None:
 
 
 def today_plan(conn, user_id: int, now: datetime) -> dict:
-    """Today's checklist. scheduled: one row per active med x time with
+    return day_plan(conn, user_id, now.date(), now)
+
+
+def day_plan(conn, user_id: int, day: date, now: datetime) -> dict:
+    """One day's checklist (today, or a past day being filled in), from the
+    current active meds and times. scheduled: one row per med x time with
     status taken / skipped / due (time passed) / upcoming. as_needed: active
-    meds without times, with today's logged doses."""
-    today = now.date().isoformat()
+    meds without times, with that day's logged doses."""
+    today = day.isoformat()
     doses = {(r["med_id"], r["scheduled_for"]): r for r in conn.execute(
         "SELECT * FROM med_doses WHERE user_id = ? AND scheduled_for LIKE ?", (user_id, today + "T%"))}
     scheduled, as_needed = [], []

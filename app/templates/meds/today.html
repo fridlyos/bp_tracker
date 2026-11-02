@@ -2,10 +2,19 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>Today</h1>
-    <p class="page-subtitle">{{ now.strftime("%A, %B %-d") }} · <a href="/meds/history">History</a></p>
+    <h1>{% if is_today %}Today{% else %}{{ day.strftime("%A, %B %-d") }}{% endif %}</h1>
+    <p class="page-subtitle">{% if is_today %}{{ now.strftime("%A, %B %-d") }}{% else %}Filling in a past day{% endif %} · <a href="/meds/history">History</a></p>
   </div>
 </div>
+<nav class="daynav" aria-label="Choose day">
+  <a href="/meds?day={{ prev }}" aria-label="Previous day" title="Previous day">‹</a>
+  <form method="get" action="/meds" class="inline" id="day-pick">
+    <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ now.date().isoformat() }}" aria-label="Day">
+    <button type="submit" class="secondary compact">Go</button>
+  </form>
+  {% if next %}<a href="/meds?day={{ next }}" aria-label="Next day" title="Next day">›</a>
+  <a href="/meds" class="today-link">Today</a>{% endif %}
+</nav>
 
 {% if not has_meds %}
 <section class="panel">
@@ -30,19 +39,21 @@
         <span class="entry-meta">
           {% if s.status == "taken" %}<span class="dose-badge taken">✓ Taken {{ s.dose.logged_at[11:16] }}</span>
           {% elif s.status == "skipped" %}<span class="dose-badge skipped">Skipped</span>
-          {% elif s.status == "due" %}<span class="dose-badge due">Due</span>
+          {% elif s.status == "due" %}<span class="dose-badge due">{{ "Due" if is_today else "Not marked" }}</span>
           {% endif %}{% if s.med.dose %}{% if s.status != "upcoming" %} · {% endif %}{{ s.med.dose }}{% endif %}
         </span>
       </span>
       <span class="dose-actions">
         {% if s.dose %}
         <form method="post" action="/meds/doses/{{ s.dose.id }}/undo" class="inline">
+          <input type="hidden" name="next" value="{{ here }}">
           <button type="submit" class="secondary compact">Undo</button>
         </form>
         {% else %}
         <form method="post" action="/meds/doses" class="inline">
           <input type="hidden" name="med_id" value="{{ s.med.id }}">
           <input type="hidden" name="slot" value="{{ s.slot }}">
+          <input type="hidden" name="day" value="{{ day.isoformat() }}">
           <button type="submit" name="status" value="skipped" class="secondary compact">Skip</button>
           <button type="submit" name="status" value="taken" class="compact">Taken</button>
         </form>
@@ -61,18 +72,22 @@
         <span class="entry-name">{{ a.med.name }}</span>
         <span class="entry-meta">
           {% if a.med.dose %}{{ a.med.dose }} · {% endif %}
-          {% if a.doses %}today at {% for d in a.doses %}{{ d.logged_at[11:16] }}{{ ", " if not loop.last }}{% endfor %}
-          {% else %}not taken today{% endif %}
+          {% set when = "today" if is_today else "this day" %}
+          {% if a.doses %}{{ when }} at {% for d in a.doses %}{{ d.logged_at[11:16] }}{{ ", " if not loop.last }}{% endfor %}
+          {% else %}not taken {{ when }}{% endif %}
         </span>
       </span>
       <span class="dose-actions">
         {% if a.doses %}
         <form method="post" action="/meds/doses/{{ a.doses[-1].id }}/undo" class="inline">
+          <input type="hidden" name="next" value="{{ here }}">
           <button type="submit" class="secondary compact" aria-label="Undo last {{ a.med.name }} dose">Undo</button>
         </form>
         {% endif %}
         <form method="post" action="/meds/doses" class="inline">
           <input type="hidden" name="med_id" value="{{ a.med.id }}">
+          <input type="hidden" name="day" value="{{ day.isoformat() }}">
+          {% if not is_today %}<input type="time" name="at" value="12:00" class="dose-at" aria-label="Time taken">{% endif %}
           <button type="submit" name="status" value="taken" class="compact">Log dose</button>
         </form>
       </span>
@@ -87,4 +102,9 @@
 <section class="panel"><p class="muted">Everything is paused. Resume items on the <a href="/meds/manage">List</a>.</p></section>
 {% endif %}
 {% endif %}
+<script>
+  // jump as soon as a date is picked (the Go button stays for no-JS)
+  const pick = document.getElementById("day-pick");
+  pick.querySelector("input").addEventListener("change", () => pick.submit());
+</script>
 {% endblock %}

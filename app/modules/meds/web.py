@@ -1,6 +1,9 @@
 """Medication pages under /meds. Two screens: Today (daily checklist, with a
 link to History) and Medications (the list; add/edit open a separate form).
 POST-redirect-GET; anonymous -> /login."""
+import re
+from datetime import date, datetime, timedelta
+
 from fastapi import APIRouter, Depends, Form, Request
 from pydantic import ValidationError
 
@@ -22,26 +25,60 @@ def _error_text(e: ValidationError) -> str:
     return "; ".join(msgs)
 
 
+_SLOT = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _day(value: str | None, today: date) -> date:
+    """?day=YYYY-MM-DD -> that day; missing, invalid or future -> today."""
+    try:
+        d = date.fromisoformat(value or "")
+    except ValueError:
+        return today
+    return d if d <= today else today
+
+
+def _day_url(d: date, today: date) -> str:
+    return "/meds" if d == today else f"/meds?day={d.isoformat()}"
+
+
 @router.get("")
-def today(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+def today(request: Request, day: str | None = None, conn=Depends(db.get_db),
+          user: User | None = Depends(current_user)):
+    """Today's checklist; ?day= opens an earlier day to fill it in."""
     if user is None:
         return redirect("/login")
     now = clock.local_now(request)
+    d = _day(day, now.date())
     return render(request, "meds/today.html", user, {
-        "now": now, "plan": service.today_plan(conn, user.id, now),
+        "now": now, "day": d, "is_today": d == now.date(),
+        "prev": (d - timedelta(days=1)).isoformat(),
+        "next": (d + timedelta(days=1)).isoformat() if d < now.date() else None,
+        "here": _day_url(d, now.date()),
+        "plan": service.day_plan(conn, user.id, d, now),
         "has_meds": bool(service.list_meds(conn, user.id))})
 
 
 @router.post("/doses")
 def dose_log(request: Request, med_id: int = Form(...), status: str = Form("taken"),
-             slot: str = Form(""), conn=Depends(db.get_db),
-             user: User | None = Depends(current_user)):
-    """Mark a slot taken/skipped, or (no slot) log an as-needed dose."""
+             slot: str = Form(""), day: str = Form(""), at: str = Form(""),
+             conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """Mark a slot taken/skipped, or (no slot) log an as-needed dose. On a
+    past `day` the dose is logged at the slot time (or `at` HH:MM)."""
     if user is None:
         return redirect("/login")
+    now = clock.local_now(request)
+    d = _day(day, now.date())
+    slot = slot if _SLOT.match(slot) else ""
+    if d == now.date():
+        logged = now
+    elif slot:
+        logged = datetime.fromisoformat(slot)
+    else:
+        logged = datetime.fromisoformat(f"{d.isoformat()}T{at if _HHMM.match(at) else '12:00'}")
     if status in ("taken", "skipped"):
-        service.log_dose(conn, user.id, med_id, status, clock.local_now(request), slot or None)
-    return redirect("/meds")
+        service.log_dose(conn, user.id, med_id, status, logged, slot or None)
+    return redirect(_day_url(d, now.date()))
 
 
 @router.post("/doses/{dose_id}/undo")
@@ -57,8 +94,9 @@ def dose_undo(dose_id: int, next_: str | None = Form(None, alias="next"),
 def history(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
+    today = clock.local_today(request)
     return render(request, "meds/history.html", user, {
-        "days": service.history(conn, user.id, 30, clock.local_today(request))})
+        "today": today.isoformat(), "days": service.history(conn, user.id, 30, today)})
 
 
 # --- manage

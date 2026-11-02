@@ -83,7 +83,10 @@ medications and supplements, kept apart by `meds.kind` (`medication` |
 `supplement`, migration `0004_med_kind`) but scheduled and reminded the same:
 - Two screens (two tabs): Today `/meds` (checklist of today's slots: Taken /
   Skip / Undo, plus "as needed" meds with Log dose; links to `/meds/history`,
-  last 30 days) and List `/meds/manage` (Medications and Supplements sections: Edit, Pause =
+  last 30 days). `/meds?day=YYYY-MM-DD` opens a past day's checklist to fill
+  in (‹ › / date picker; future clamps to today); past doses are logged at the
+  slot time, as-needed ones at a chosen time. History has Edit per day + a
+  "Fill in day" picker and List `/meds/manage` (Medications and Supplements sections: Edit, Pause =
   hidden + no reminders but history kept, Delete = removes history; "+
   Medication" / "+ Supplement", the latter is `/meds/manage/new?kind=supplement`).
   Today is also split into Medications / Supplements sections. Add/edit is its own form page: `/meds/manage/new`,
