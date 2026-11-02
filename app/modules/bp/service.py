@@ -285,3 +285,11 @@ def send_reminders(conn, now_utc: datetime) -> None:
         conn.execute("UPDATE bp_reminders SET last_sent = ? WHERE id = ?",
                      (r["local_now"].date().isoformat(), r["id"]))
         conn.commit()
+
+
+def adopt_zone(conn, user_id: int, tz: str) -> None:
+    """Rows saved as 'UTC' while the tz cookie was misread (every browser
+    looked like UTC) move to the browser's real zone once we know it."""
+    if tz != "UTC":
+        if conn.execute("UPDATE bp_reminders SET tz = ? WHERE user_id = ? AND tz = 'UTC'", (tz, user_id)).rowcount:
+            conn.commit()

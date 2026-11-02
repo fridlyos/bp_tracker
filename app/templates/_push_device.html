@@ -1,0 +1,10 @@
+{# "Enable notifications on this device"; state filled in by /static/push.js (textContent only).
+   Include once per page, plus <script src="{{ static_url('push.js') }}" defer></script>. #}
+<div class="push-device" data-push data-devices="{{ devices }}">
+  <p class="push-status" data-push-status>Checking notifications on this device…</p>
+  <div class="push-actions">
+    <button type="button" data-push-enable hidden>Enable notifications on this device</button>
+    <button type="button" class="secondary" data-push-test hidden>Send test</button>
+    <button type="button" class="secondary" data-push-disable hidden>Turn off on this device</button>
+  </div>
+</div>

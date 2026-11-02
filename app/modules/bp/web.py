@@ -43,6 +43,7 @@ def today(request: Request, conn=Depends(db.get_db),
     """Quick-add form + today's readings."""
     if user is None:
         return redirect("/login")
+    service.adopt_zone(conn, user.id, clock.user_tz(request).key)
     return render(request, "bp/today.html", user, _today_ctx(request, conn, user))
 
 
@@ -108,6 +109,7 @@ def reports(request: Request, period: str = Query("week"), conn=Depends(db.get_d
 
 
 def _settings_ctx(request, conn, user, **extra):
+    service.adopt_zone(conn, user.id, clock.user_tz(request).key)
     return {"reminders": service.list_reminders(conn, user.id),
             "max_reminders": service.MAX_REMINDERS,
             "tz": clock.user_tz(request).key, "devices": push.device_count(conn, user.id),

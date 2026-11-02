@@ -105,6 +105,10 @@ medications and supplements, kept apart by `meds.kind` (`medication` |
 - Job `service.send_reminders`: one push per user per minute listing every
   item due now (title counts kinds: "Time for 1 medication and 1 supplement") (in the med's zone, ≤30 min late, once per day per time),
   skipping slots already marked (e.g. taken early). Tapping opens `/meds`.
+  Enable-notifications block (`templates/_push_device.html` + `push.js`) is on
+  List (Reminders section) and on Today while the user has no device; BP
+  Settings uses the same partial. `service.adopt_zone` (meds + bp): rows saved
+  as `UTC` (old tz-cookie bug) move to the browser zone on page visits.
 - Validation: `schemas.MedIn` (name required ≤80, dose ≤80, notes ≤300,
   ≤6 distinct `HH:MM` times; none = as needed).
 

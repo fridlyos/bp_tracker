@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, Form, Request
 from pydantic import ValidationError
 
-from ... import clock, db
+from ... import clock, db, push
 from ...deps import current_user
 from ...schemas import User
 from ...ui import redirect, render, safe_next
@@ -48,9 +48,11 @@ def today(request: Request, day: str | None = None, conn=Depends(db.get_db),
     """Today's checklist; ?day= opens an earlier day to fill it in."""
     if user is None:
         return redirect("/login")
+    service.adopt_zone(conn, user.id, clock.user_tz(request).key)
     now = clock.local_now(request)
     d = _day(day, now.date())
     return render(request, "meds/today.html", user, {
+        "devices": push.device_count(conn, user.id),
         "now": now, "day": d, "is_today": d == now.date(),
         "prev": (d - timedelta(days=1)).isoformat(),
         "next": (d + timedelta(days=1)).isoformat() if d < now.date() else None,
@@ -114,7 +116,9 @@ def manage(request: Request, conn=Depends(db.get_db), user: User | None = Depend
     """The medication list (no form here)."""
     if user is None:
         return redirect("/login")
-    return render(request, "meds/manage.html", user, {"meds": service.list_meds(conn, user.id)})
+    service.adopt_zone(conn, user.id, clock.user_tz(request).key)
+    return render(request, "meds/manage.html", user, {"meds": service.list_meds(conn, user.id),
+                                                      "devices": push.device_count(conn, user.id)})
 
 
 @router.get("/manage/new")

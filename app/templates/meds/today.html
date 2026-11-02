@@ -98,6 +98,14 @@
 </section>
 {% endif %}
 {% endfor %}
+{% if is_today and not devices and plan.scheduled %}
+<section class="panel">
+  <h2>Get reminded</h2>
+  <p class="muted">Turn on notifications to get a reminder when each dose is due.</p>
+  {% include "_push_device.html" %}
+</section>
+<script src="{{ static_url('push.js') }}" defer></script>
+{% endif %}
 {% if not plan.scheduled and not plan.as_needed %}
 <section class="panel"><p class="muted">Everything is paused. Resume items on the <a href="/meds/manage">List</a>.</p></section>
 {% endif %}

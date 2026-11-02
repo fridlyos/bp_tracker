@@ -12,15 +12,7 @@
   <p class="muted">A notification to log your blood pressure, every day at these times.
     Skipped if you logged a reading in the 2 hours before.</p>
 
-  {# device state is filled in by /static/push.js (textContent only) #}
-  <div class="push-device" data-push data-devices="{{ devices }}">
-    <p class="push-status" data-push-status>Checking notifications on this device…</p>
-    <div class="push-actions">
-      <button type="button" data-push-enable hidden>Enable notifications on this device</button>
-      <button type="button" class="secondary" data-push-test hidden>Send test</button>
-      <button type="button" class="secondary" data-push-disable hidden>Turn off on this device</button>
-    </div>
-  </div>
+  {% include "_push_device.html" %}
 
   {% if reminder_error %}<p class="error">{{ reminder_error }}</p>{% endif %}
   {% if reminders %}

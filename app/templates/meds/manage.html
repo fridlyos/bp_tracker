@@ -57,4 +57,12 @@
   <p class="muted">Nothing here yet. Add a medication or supplement with its daily times; leave the times empty for “as needed”.</p>
 </section>
 {% endif %}
+
+<section class="panel" id="reminders">
+  <h2>Reminders</h2>
+  <p class="muted">A notification at each time above, listing everything due then. Nothing is sent for
+    a dose you've already marked taken or skipped, or for paused items.</p>
+  {% include "_push_device.html" %}
+</section>
+<script src="{{ static_url('push.js') }}" defer></script>
 {% endblock %}
