@@ -21,7 +21,7 @@
     // server stores local wall-clock times; tell it which zone "now"/"today" are in
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (tz) document.cookie = "tz=" + encodeURIComponent(tz) + ";path=/;max-age=31536000;samesite=lax";
+      if (tz) document.cookie = "tz=" + tz + ";path=/;max-age=31536000;samesite=lax";
     } catch (e) {}
   </script>
   <script>
