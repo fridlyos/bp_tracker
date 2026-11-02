@@ -3,12 +3,16 @@ console. Module pages live in app/modules/<key>/web.py.
 
 Anonymous visitors are redirected to /login. Admin-only pages check is_admin.
 """
+import json
+import os
+import tempfile
+from datetime import date
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
-from . import db, service
+from . import backup, db, service
 from .deps import current_user, start_session
 from .modules import MODULES
 from .schemas import User
@@ -143,3 +147,65 @@ def users_reset(user_id: int, password: str = Form(...), conn=Depends(db.get_db)
         return _to("/login")
     service.set_password(conn, user_id, password)
     return _to("/users-ui")
+
+
+# --- backup & restore (every user: own data as JSON; admin: whole DB)
+
+MAX_BACKUP_BYTES = 10 * 1024 * 1024
+
+
+def _backup_page(request, user, result=None, error=None, status=200):
+    resp = _render(request, "backup.html", user, {"result": result, "error": error})
+    resp.status_code = status
+    return resp
+
+
+@router.get("/backup")
+def backup_page(request: Request, user: User | None = Depends(current_user)):
+    if user is None:
+        return _to("/login")
+    return _backup_page(request, user)
+
+
+@router.get("/backup/download")
+def backup_download(conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """All of the user's data as a JSON file."""
+    if user is None:
+        return _to("/login")
+    name = f"my-apps-backup-{user.username}-{date.today().isoformat()}.json"
+    return JSONResponse(backup.export_user(conn, user.id, user.username),
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@router.post("/backup/restore")
+async def backup_restore(request: Request, file: UploadFile = File(...),
+                         conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """Merge a backup file into the user's data (adds missing rows only)."""
+    if user is None:
+        return _to("/login")
+    raw = await file.read(MAX_BACKUP_BYTES + 1)
+    try:
+        if len(raw) > MAX_BACKUP_BYTES:
+            raise ValueError("That file is too big to be a backup (10 MB max).")
+        try:
+            data = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise ValueError("This file isn't a My Apps backup.") from None
+        result = backup.restore_user(conn, user.id, data)
+    except ValueError as e:
+        return _backup_page(request, user, error=str(e), status=422)
+    return _backup_page(request, user, result=result)
+
+
+@router.get("/backup/database")
+def backup_database(background: BackgroundTasks, conn=Depends(db.get_db),
+                    user: User | None = Depends(current_user)):
+    """Admin-only: a consistent copy of the whole SQLite database."""
+    if user is None or not user.is_admin:
+        return _to("/")
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    backup.copy_database(conn, path)
+    background.add_task(os.remove, path)
+    return FileResponse(path, media_type="application/vnd.sqlite3",
+                        filename=f"my-apps-{date.today().isoformat()}.db")

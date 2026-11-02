@@ -50,6 +50,7 @@
           <b>{{ user.username }}</b>{% if user.is_admin %}<span class="muted">administrator</span>{% endif %}
         </div>
         {% if user.is_admin %}<a class="menu-item" role="menuitem" href="/users-ui">Users &amp; switch account</a>{% endif %}
+        <a class="menu-item" role="menuitem" href="/backup">Backup &amp; restore</a>
         <button type="button" class="menu-item" role="menuitem" data-theme-toggle></button>
         <form method="post" action="/logout">
           <button type="submit" class="menu-item danger-text" role="menuitem">Log out</button>

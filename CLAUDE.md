@@ -44,6 +44,13 @@ Core (shared by all modules):
   admin seed (`ADMIN_PASSWORD`, default `admin`). Backs up an existing DB to
   `backups/` before applying new migrations.
 - `app/auth.py` — stdlib pbkdf2 password hashing.
+- `app/backup.py` + `/backup` (account menu "Backup & restore") — every user
+  downloads all their data as JSON (`/backup/download`, `format:
+  my-apps-backup`, `version` 1, no ids) and restores it (`/backup/restore`):
+  merge only, never deletes/overwrites; existing rows skipped (meds matched by
+  name+kind), invalid rows counted; rows re-validated with `ReadingIn` /
+  `MedIn`. Admin also gets `/backup/database` (sqlite backup API snapshot).
+  New tables/columns a user owns must be added to export + restore.
 - `app/templates/` (`base.html`, `launcher.html`, auth, users), `app/static/`
   — UI, PWA manifest, service worker, icons. Shell in `base.html`: sticky top
   bar ("My Apps / <module>" breadcrumb, account menu: avatar + username, theme,

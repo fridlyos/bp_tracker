@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Backup &amp; restore</h1>
+    <p class="page-subtitle">Keep a copy of your data, or bring it back. <a href="/">← Home</a></p>
+  </div>
+</div>
+
+{% if result %}
+<section class="panel notice" role="status">
+  <p><b>Restore finished.</b> Added {{ result.added }} item{{ "" if result.added == 1 else "s" }}{% if result.skipped %}, {{ result.skipped }} already here{% endif %}{% if result.invalid %}, {{ result.invalid }} couldn't be read and {{ "was" if result.invalid == 1 else "were" }} skipped{% endif %}.</p>
+</section>
+{% endif %}
+{% if error %}<section class="panel"><p class="error" role="alert">{{ error }}</p></section>{% endif %}
+
+<section class="panel">
+  <h2>Download a backup</h2>
+  <p>One file with everything in your account: blood pressure readings and reminders, medications,
+     supplements and every dose you've marked. Save it somewhere safe (Files, iCloud Drive, email it to yourself).</p>
+  <p><a class="button-link primary" href="/backup/download" download>Download backup</a></p>
+</section>
+
+<section class="panel">
+  <h2>Restore from a backup</h2>
+  <p>Adds anything from the file that isn't already here. Nothing is deleted or changed, so it's safe to restore
+     the same file twice.</p>
+  <form method="post" action="/backup/restore" enctype="multipart/form-data">
+    <label>Backup file <input type="file" name="file" accept=".json,application/json" required></label>
+    <div class="dialog-actions"><button type="submit">Restore</button></div>
+  </form>
+</section>
+
+{% if user.is_admin %}
+<section class="panel">
+  <h2>Whole database <span class="muted">(admin)</span></h2>
+  <p>A copy of the SQLite database with every account, for disaster recovery. To bring it back, replace
+     <code>/data/bp.db</code> on the server with it.</p>
+  <p><a class="button-link" href="/backup/database" download>Download database</a></p>
+</section>
+{% endif %}
+{% endblock %}
