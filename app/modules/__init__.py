@@ -31,6 +31,9 @@ class Module:
     routers: tuple[APIRouter, ...] = ()
     # background jobs, run every minute by app/scheduler.py: job(conn, now_utc)
     jobs: tuple[Callable, ...] = field(default=(), compare=False)
+    # tables with (user_id, tz) columns holding the zone a schedule was saved in;
+    # deps.session_user repairs stale 'UTC' values there (see clock.repair_zones)
+    tz_tables: tuple[str, ...] = ()
 
     @property
     def href(self) -> str:

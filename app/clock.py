@@ -24,6 +24,33 @@ def user_tz(request: Request) -> ZoneInfo:
         return _UTC
 
 
+def browser_zone(request: Request) -> str | None:
+    """The browser's IANA zone name if the cookie holds a valid one, else None."""
+    name = unquote(request.cookies.get("tz") or "")
+    try:
+        return ZoneInfo(name).key if name else None
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+
+
+def repair_zones(conn, user_id: int, zone: str) -> int:
+    """Until 9d49fbe the server read every 'Area/City' cookie as UTC, so
+    reminders and med times saved then carry tz='UTC' and fire hours off.
+    Rewrite this user's 'UTC' rows to the zone the browser reports now.
+    Rows saved with a real zone are left alone (no surprise moves on travel).
+    Returns how many rows changed."""
+    if zone == "UTC":
+        return 0
+    from .modules import MODULES  # late: modules import clock
+    changed = 0
+    for table in {t for m in MODULES for t in m.tz_tables}:
+        changed += conn.execute(f"UPDATE {table} SET tz = ? WHERE user_id = ? AND tz = 'UTC'",
+                                (zone, user_id)).rowcount
+    if changed:
+        conn.commit()
+    return changed
+
+
 def local_now(request: Request) -> datetime:
     return datetime.now(user_tz(request)).replace(tzinfo=None)
 

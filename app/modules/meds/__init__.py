@@ -17,4 +17,5 @@ MODULE = Module(
     ),
     routers=(web.router, api.router),
     jobs=(service.send_reminders,),
+    tz_tables=("meds",),
 )

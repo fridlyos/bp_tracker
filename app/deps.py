@@ -2,10 +2,14 @@
 
 The logged-in user lives in a signed session cookie (SessionMiddleware).
 """
+import logging
+
 from fastapi import Depends, HTTPException, Request
 
-from . import db, service
+from . import clock, db, service
 from .schemas import User
+
+logger = logging.getLogger("bp_tracker.deps")
 
 
 def start_session(request: Request, user: User) -> None:
@@ -25,6 +29,13 @@ def session_user(request: Request, conn) -> User | None:
     if user is None or request.session.get("u") != user.username:
         request.session.clear()
         return None
+    # once per session and zone: fix schedules saved as UTC by the old cookie bug
+    zone = clock.browser_zone(request)
+    if zone and request.session.get("tz") != zone:
+        n = clock.repair_zones(conn, user.id, zone)
+        if n:
+            logger.info("user %s: moved %d schedule(s) from UTC to %s", user.id, n, zone)
+        request.session["tz"] = zone
     return user
 
 

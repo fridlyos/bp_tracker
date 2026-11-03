@@ -24,6 +24,9 @@ Core (shared by all modules):
   pre-module URLs (`/trends` → `/bp/trends`, ...).
 - `app/deps.py` — session user: `current_user` (HTML, None = anonymous ->
   `/login`), `api_user` (JSON, 401). Signed cookie `uid` + `u` (username).
+  Once per session/zone it calls `clock.repair_zones`: rows in modules'
+  `tz_tables` still saved as 'UTC' (pre-`9d49fbe` cookie bug) get the
+  browser's real zone; correctly saved zones are never rewritten.
 - `app/ui.py` — `templates`, `render()` (finds the module owning the path, so
   `base.html` shows its tab bar + breadcrumb), `redirect`, `safe_next`,
   `APP_NAME`.
