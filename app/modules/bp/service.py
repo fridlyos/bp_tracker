@@ -219,7 +219,6 @@ def reports(conn, user_id: int, period: str) -> list[dict]:
 
 MAX_REMINDERS = 6
 REMINDER_WINDOW = timedelta(minutes=30)  # late-fire allowance after a restart
-SKIP_IF_LOGGED_WITHIN = timedelta(hours=2)
 
 
 def list_reminders(conn, user_id: int) -> list[dict]:
@@ -268,16 +267,40 @@ def due_reminders(conn, now_utc: datetime) -> list[dict]:
     return due
 
 
+def reminder_window_start(conn, reminder: dict) -> datetime:
+    """Start of the stretch of today in which a reading answers this reminder:
+    half-way back to the user's previous reminder today, or midnight if it is
+    the first. E.g. reminders 08:00 + 20:00: 08:00 covers 00:00-08:00 and
+    20:00 covers 14:00-20:00, so a late 09:00 reading answers the morning
+    reminder without silencing the evening one."""
+    day = reminder["local_now"].date()
+    at = datetime.strptime(reminder["at_time"], "%H:%M")
+    earlier = [datetime.strptime(t, "%H:%M") for (t,) in conn.execute(
+        "SELECT at_time FROM bp_reminders WHERE user_id = ? AND at_time < ?",
+        (reminder["user_id"], reminder["at_time"]))]
+    if not earlier:
+        return datetime.combine(day, datetime.min.time())
+    prev = max(earlier)
+    return datetime.combine(day, (prev + (at - prev) / 2).time())
+
+
+def already_logged(conn, reminder: dict) -> bool:
+    """True if the user logged a reading that answers this reminder (see
+    reminder_window_start), up to now. Readings are naive local times."""
+    return conn.execute(
+        "SELECT 1 FROM readings WHERE user_id = ? AND taken_at >= ? AND taken_at <= ?",
+        (reminder["user_id"], _iso(reminder_window_start(conn, reminder)),
+         _iso(reminder["local_now"]))).fetchone() is not None
+
+
 def send_reminders(conn, now_utc: datetime) -> None:
-    """Scheduler job: push 'time to log' for each due reminder, unless the user
-    logged a reading in the last 2 hours. Marked done for today either way."""
+    """Scheduler job: push 'time to log' for each due reminder, unless a reading
+    for it is already logged today (already_logged). Marked done for today
+    either way, so it never fires twice."""
     from ... import push  # late: keeps this module importable without push deps
     for r in due_reminders(conn, now_utc):
-        since = _iso(r["local_now"] - SKIP_IF_LOGGED_WITHIN)
-        recent = conn.execute("SELECT 1 FROM readings WHERE user_id = ? AND taken_at >= ?",
-                              (r["user_id"], since)).fetchone()
-        if recent:
-            logger.info("reminder %s skipped: user %s logged recently", r["id"], r["user_id"])
+        if already_logged(conn, r):
+            logger.info("reminder %s skipped: user %s already logged a reading", r["id"], r["user_id"])
         else:
             n = push.send_to_user(conn, r["user_id"], "Time to check your blood pressure",
                                   "Tap to log a reading.", "/bp")

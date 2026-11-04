@@ -68,8 +68,9 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
   `/bp/reports`, `/bp/history`, `/bp/settings` (reminders + purge).
 - Reminders (`bp_reminders`): daily `HH:MM` in the IANA zone the browser had
   when it was added. Job `service.send_reminders` fires each at most once per
-  local day, up to 30 min late (restarts), and skips if a reading was logged
-  in the 2 hours before.
+  local day, up to 30 min late (restarts), and is not sent if a reading for
+  it is already logged today: since midnight for the first reminder, else since
+  half-way back to the previous reminder (`service.already_logged`).
 - `api.py` — JSON under `/api/bp` (readings CRUD + purge, `/api/bp/stats`
   chart data, `/api/bp/reports`).
 - `service.py` — readings SQL, stats, reports, reminders.

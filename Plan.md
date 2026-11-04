@@ -110,7 +110,8 @@ The app is now a hub of modules; blood pressure is the first one.
 - BP Settings → Reminders: up to 6 daily times (stored with the browser's time
   zone). A once-a-minute in-process scheduler sends "Time to check your blood
   pressure"; tapping opens `/bp`. Skipped if a reading was logged in the
-  previous 2 hours; at most once per reminder per day.
+  previous 2 hours; at most once per reminder per day. (Later: skipped if a
+  reading for that reminder is already logged today, see CLAUDE.md.)
 - Migration `0002_push_reminders` (app_kv, push_subscriptions, bp_reminders).
 - Possible next: weekly summary push, missed-day nudge.
 

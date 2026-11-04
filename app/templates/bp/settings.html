@@ -10,7 +10,7 @@
 <section class="panel" id="reminders">
   <h2>Reminders</h2>
   <p class="muted">A notification to log your blood pressure, every day at these times.
-    Skipped if you logged a reading in the 2 hours before.</p>
+    Not sent if you've already logged a reading for it today.</p>
 
   {# device state is filled in by /static/push.js (textContent only) #}
   <div class="push-device" data-push data-devices="{{ devices }}">
