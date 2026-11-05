@@ -29,3 +29,17 @@ def test_future_or_bad_day_falls_back_to_today():
     future = (date.today() + timedelta(days=5)).isoformat()
     for d in (future, "nope"):
         assert "<h1>Today</h1>" in c.get(f"/meds?day={d}").text
+
+
+def test_day_switcher_is_big_and_labelled():
+    from datetime import datetime, timezone
+    c = _user()  # tz cookie UTC
+    today = datetime.now(timezone.utc).date()
+    html = c.get("/meds").text
+    y = today - timedelta(days=1)
+    assert f'class="day-step" href="/meds?day={y.isoformat()}"' in html
+    assert f'{y.strftime("%b")} {y.day}</span>' in html            # labelled with the date
+    assert 'day-step is-disabled' in html and "Back to today" not in html  # no future
+    past = c.get(f"/meds?day={y.isoformat()}").text
+    assert f'href="/meds?day={today.isoformat()}"' in past and "Back to today" in past
+    assert 'onchange="this.form.submit()"' in past                  # picking a date jumps

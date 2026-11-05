@@ -448,7 +448,29 @@ a.button-link.primary:hover { background: var(--primary-hover); }
 .sub-head { margin: 1rem 0 .2rem; font-size: .85rem; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: .03em; }
 /* meds: pick a day to fill in */
-.daynav input[type="date"] { width: auto; padding: .3rem .5rem; }
 .page-head form.inline input[type="date"] { width: auto; padding: .3rem .5rem; }
 .dose-actions input.dose-at { width: auto; padding: .25rem .4rem; }
 .secondary-link { font-size: .85rem; font-weight: 600; color: var(--primary); text-decoration: none; }
+
+/* meds: big previous/next day switcher (thumb-sized, labelled with the date) */
+.daynav:has(.day-step) { display: grid; grid-template-columns: 1fr minmax(0, 1.3fr) 1fr; gap: .5rem;
+  align-items: stretch; margin: .2rem 0 .8rem; }
+.day-step { display: flex; align-items: center; justify-content: center; gap: .35rem; min-height: 3rem;
+  padding: 0 .6rem; border: 1.5px solid var(--input-border); border-radius: 12px; background: var(--surface);
+  color: var(--primary); font-size: 1.05rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.day-step:hover { background: var(--surface-subtle); }
+.day-step:active { transform: scale(.97); }
+.day-step svg { width: 24px; height: 24px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2.5;
+  stroke-linecap: round; stroke-linejoin: round; }
+.day-step.is-disabled { color: var(--muted-soft); border-style: dashed; pointer-events: none; }
+.day-pick { margin: 0; display: flex; gap: .3rem; }
+.day-pick input[type="date"] { width: 100%; min-height: 3rem; font-size: 1rem; text-align: center;
+  border-radius: 12px; padding: 0 .4rem; }
+.back-today { display: flex; width: 100%; margin: 0 0 1rem; box-sizing: border-box; }
+@media (max-width: 360px) {
+  /* smallest iPhones: the two big buttons side by side, date picker full width below */
+  .daynav:has(.day-step) { grid-template-columns: 1fr 1fr; grid-template-areas: "prev next" "pick pick"; }
+  .daynav .day-step:first-child { grid-area: prev; }
+  .daynav .day-pick { grid-area: pick; }
+  .daynav .day-step:last-child { grid-area: next; }
+}

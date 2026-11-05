@@ -52,8 +52,8 @@ def today(request: Request, day: str | None = None, conn=Depends(db.get_db),
     d = _day(day, now.date())
     return render(request, "meds/today.html", user, {
         "now": now, "day": d, "is_today": d == now.date(),
-        "prev": (d - timedelta(days=1)).isoformat(),
-        "next": (d + timedelta(days=1)).isoformat() if d < now.date() else None,
+        "prev": d - timedelta(days=1),
+        "next": d + timedelta(days=1) if d < now.date() else None,
         "here": _day_url(d, now.date()),
         "plan": service.day_plan(conn, user.id, d, now),
         "has_meds": bool(service.list_meds(conn, user.id))})

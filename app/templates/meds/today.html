@@ -6,15 +6,27 @@
     <p class="page-subtitle">{% if is_today %}{{ now.strftime("%A, %B %-d") }}{% else %}Filling in a past day{% endif %} · <a href="/meds/history">History</a></p>
   </div>
 </div>
+{# big day switcher: ‹ previous | date picker | next ›; next is a disabled
+   placeholder on today so the bar never shifts under the thumb #}
 <nav class="daynav" aria-label="Choose day">
-  <a href="/meds?day={{ prev }}" aria-label="Previous day" title="Previous day">‹</a>
-  <form method="get" action="/meds" class="inline" id="day-pick">
-    <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ now.date().isoformat() }}" aria-label="Day">
-    <button type="submit" class="secondary compact">Go</button>
+  <a class="day-step" href="/meds?day={{ prev.isoformat() }}" aria-label="Previous day, {{ prev.strftime('%A %B %-d') }}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    <span>{{ prev.strftime("%b %-d") }}</span></a>
+  <form method="get" action="/meds" class="day-pick" id="day-pick">
+    <input type="date" name="day" value="{{ day.isoformat() }}" max="{{ now.date().isoformat() }}"
+           aria-label="Pick a day" onchange="this.form.submit()">
+    <noscript><button type="submit" class="secondary">Go</button></noscript>
   </form>
-  {% if next %}<a href="/meds?day={{ next }}" aria-label="Next day" title="Next day">›</a>
-  <a href="/meds" class="today-link">Today</a>{% endif %}
+  {% if next %}
+  <a class="day-step" href="/meds?day={{ next.isoformat() }}" aria-label="Next day, {{ next.strftime('%A %B %-d') }}">
+    <span>{{ next.strftime("%b %-d") }}</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
+  {% else %}
+  <span class="day-step is-disabled" aria-hidden="true">
+    <span>Next</span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+  {% endif %}
 </nav>
+{% if not is_today %}<a class="button-link primary back-today" href="/meds">Back to today</a>{% endif %}
 
 {% if not has_meds %}
 <section class="panel">
