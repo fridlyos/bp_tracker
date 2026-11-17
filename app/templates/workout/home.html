@@ -15,8 +15,23 @@
 </section>
 {% elif has_exercises %}
 <form method="post" action="/workout/start">
-  <button type="submit" class="wo-big">Start workout</button>
+  <button type="submit" class="wo-big">Start empty workout</button>
 </form>
+{% if routines %}
+<section class="panel">
+  <div class="section-head"><h2>Start a routine</h2><a href="/workout/routines">Routines</a></div>
+  <div class="rt-start">
+    {% for r in routines %}
+    <form method="post" action="/workout/routines/{{ r.id }}/start" class="inline">
+      <button type="submit" class="secondary rt-start-btn"><b>{{ r.name }}</b>
+        <span class="muted">{{ r["items"]|length }} exercise{{ "" if r["items"]|length == 1 else "s" }}</span></button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<p class="muted wo-note">Do the same workouts often? <a href="/workout/routines/new">Save a routine</a> and start it in one tap.</p>
+{% endif %}
 {% else %}
 <section class="panel">
   <p>Add the exercises you do first: name, whether it uses reps and weight, and the rest you want between sets.</p>
@@ -25,12 +40,15 @@
 {% endif %}
 
 {% if week.workouts or prs %}
-<div class="stat-row" aria-label="This week">
+<div class="stat-row wo-stats" aria-label="This week">
   <div class="stat"><span class="stat-label">Workouts this week</span><span class="stat-value">{{ week.workouts }}</span></div>
   <div class="stat"><span class="stat-label">Sets</span><span class="stat-value">{{ week.sets }}</span></div>
   <div class="stat"><span class="stat-label">Training time</span><span class="stat-value">{{ dur(week.time_sec) }}</span></div>
+  <div class="stat"><span class="stat-label">Calories</span><span class="stat-value">{{ week.kcal if week.kcal is not none else "–" }}</span>
+    <span class="stat-unit">{% if settings.body_weight %}kcal{% else %}<a href="/workout/settings">set body weight</a>{% endif %}</span></div>
 </div>
 {% endif %}
+<p class="wo-links"><a href="/workout/routines">Routines</a> · <a href="/workout/settings">Settings</a></p>
 
 {% if prs %}
 <section class="panel">

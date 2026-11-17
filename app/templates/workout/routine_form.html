@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "workout/_fmt.html" import num %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ "Edit routine" if edit else "New routine" }}</h1>
+    <p class="page-subtitle"><a href="/workout/routines">← Routines</a></p>
+  </div>
+</div>
+{% if not exercises %}
+<section class="panel"><p>Add exercises first: <a href="/workout/exercises/new">+ Exercise</a>.</p></section>
+{% else %}
+<section class="panel">
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ '/workout/routines/' ~ edit.id if edit else '/workout/routines' }}" id="rt-form">
+    <label>Name <input name="name" maxlength="60" required value="{{ f.name or '' }}" placeholder="e.g. Push day"></label>
+    <fieldset class="rt-items">
+      <legend>Exercises, in order <span class="muted">(tick “superset” to alternate with the one above)</span></legend>
+      {% set items = f["items"] %}
+      {% for i in range(rows) %}
+      {% set it = items[i] if i < items|length else {"target_sets": 3, "target_reps": none, "target_weight": none,
+                                                      "rest_sec": none, "superset_with_previous": false, "exercise_id": none} %}
+      <div class="rt-row"{% if i > items|length %} data-extra hidden{% endif %}>
+        <div class="rt-row-head">
+          <span class="rt-no">{{ i + 1 }}</span>
+          <select name="item_exercise" aria-label="Exercise {{ i + 1 }}">
+            <option value="">—</option>
+            {% for e in exercises %}<option value="{{ e.id }}"{% if it.exercise_id == e.id %} selected{% endif %}>{{ e.name }}</option>{% endfor %}
+          </select>
+          <span class="rt-move">
+            <button type="button" class="secondary compact" data-move="-1" aria-label="Move exercise {{ i + 1 }} up">↑</button>
+            <button type="button" class="secondary compact" data-move="1" aria-label="Move exercise {{ i + 1 }} down">↓</button>
+          </span>
+        </div>
+        <div class="rt-row-fields">
+          <label>Sets <input name="item_sets" type="number" inputmode="numeric" min="1" max="20" value="{{ it.target_sets if it.target_sets is not none else '' }}"></label>
+          <label>Reps <input name="item_reps" type="number" inputmode="numeric" min="1" max="200" value="{{ it.target_reps if it.target_reps is not none else '' }}"></label>
+          <label>Weight <input name="item_weight" type="number" inputmode="decimal" min="0" max="2000" step="0.5" value="{{ num(it.target_weight) }}"></label>
+          <label>Rest s <input name="item_rest" type="number" inputmode="numeric" min="0" max="1800" step="5" value="{{ it.rest_sec if it.rest_sec is not none else '' }}" placeholder="default"></label>
+          <label class="kind-option rt-ss"><input type="checkbox" name="item_superset" value="{{ i }}"{% if it.superset_with_previous %} checked{% endif %}> Superset</label>
+        </div>
+      </div>
+      {% endfor %}
+      <button type="button" class="link-button" data-more-rows>+ another exercise</button>
+    </fieldset>
+    <label>Notes <span class="muted">(optional)</span><input name="notes" maxlength="300" value="{{ f.notes or '' }}"></label>
+    <div class="dialog-actions">
+      <a class="button-link secondary" href="/workout/routines">Cancel</a>
+      <button type="submit">{{ "Save changes" if edit else "Save routine" }}</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+<script>
+  (function () {
+    const form = document.getElementById("rt-form");
+    if (!form) return;
+    const more = form.querySelector("[data-more-rows]");
+    const next = () => form.querySelector(".rt-row[data-extra][hidden]");
+    more.hidden = !next();
+    more.addEventListener("click", () => { const r = next(); if (r) { r.hidden = false; r.querySelector("select").focus(); } more.hidden = !next(); });
+    // reorder rows; renumber, and keep each superset tick pointing at its row index
+    function renumber() {
+      form.querySelectorAll(".rt-row").forEach((row, i) => {
+        row.querySelector(".rt-no").textContent = String(i + 1);
+        row.querySelector('input[name="item_superset"]').value = String(i);
+      });
+    }
+    form.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-move]");
+      if (!b) return;
+      const row = b.closest(".rt-row");
+      const sib = b.dataset.move === "-1" ? row.previousElementSibling : row.nextElementSibling;
+      if (!sib || !sib.classList.contains("rt-row") || sib.hidden) return;
+      if (b.dataset.move === "-1") sib.before(row); else sib.after(row);
+      renumber();
+      b.focus();
+    });
+  })();
+</script>
+{% endblock %}

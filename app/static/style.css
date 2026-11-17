@@ -545,3 +545,47 @@ a.stat:hover { background: var(--surface-subtle); }
   letter-spacing: .04em; background: var(--warn); color: var(--surface); vertical-align: .1em; }
 .wo-set .pr-badge { margin-left: .35rem; }
 .wo-clock-sub.is-pr { color: var(--warn); font-weight: 700; }
+
+/* --- workout phase 3: routines, supersets, RPE/tempo, calories */
+.wo-stats { grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); }
+.wo-links { margin: -.4rem 0 1rem; font-size: .9rem; }
+.wo-note { font-size: .85rem; margin: .4rem 0 0; }
+.wo-target { margin: 0 0 .5rem; text-align: center; font-weight: 650; color: var(--text-strong); font-size: .92rem; }
+.wo-more { margin: 0 0 .6rem; }
+.wo-more summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; gap: .4rem;
+  color: var(--primary); font-weight: 600; font-size: .92rem; }
+.wo-more select { width: 100%; min-height: 3rem; font-size: 1.1rem; }
+.wo-ex.wo-ss { border-left: 4px solid var(--primary); }
+.wo-ss-tag { flex: 0 0 auto; font-size: .78rem; font-weight: 800; padding: .1rem .4rem; border-radius: 5px;
+  background: var(--primary); color: var(--on-primary); }
+.wo-ex-head { justify-content: flex-start; }
+.wo-ex-head .wo-ex-rest { margin-left: auto; }
+.wo-ex-target { margin: 0 0 .2rem; font-weight: 600; color: var(--text); }
+.wo-ex-tools { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; margin-top: .3rem; }
+.wo-ex-tools .link-button { min-height: 2.75rem; font-size: .9rem; }
+.wo-after form.row { flex-wrap: wrap; }
+.wo-after input { flex: 1 1 8rem; min-height: 2.75rem; }
+.wo-after button { min-height: 2.75rem; }
+.rt-start { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .6rem; }
+.rt-start form.inline { margin: 0; display: block; }
+.rt-start-btn { width: 100%; min-height: 3.5rem; display: flex; flex-direction: column; align-items: flex-start;
+  gap: .1rem; text-align: left; border-radius: 12px; }
+.rt-start-btn b { color: var(--text-strong); font-size: 1rem; }
+.rt-start-btn .muted { font-size: .8rem; }
+.rt-items { border: none; padding: 0; margin: 0 0 .8rem; }
+.rt-items legend { padding: 0; margin-bottom: .4rem; }
+.rt-row { border: 1px solid var(--border); border-radius: 10px; padding: .5rem .6rem; margin-bottom: .5rem;
+  background: var(--surface); }
+.rt-row-head { display: flex; align-items: center; gap: .5rem; }
+.rt-row-head select { flex: 1 1 auto; min-height: 2.75rem; }
+.rt-no { font-weight: 700; color: var(--muted); min-width: 1.2rem; }
+.rt-move { display: inline-flex; gap: .3rem; }
+.rt-move button { min-width: 2.75rem; min-height: 2.75rem; }
+.rt-row-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: .5rem; align-items: end;
+  margin-top: .4rem; }
+.rt-row-fields input[type="number"] { width: 100%; min-height: 2.75rem; }
+.rt-ss { font-size: .9rem; }
+.rt-items .link-button { min-height: 2.75rem; font-size: .95rem; }
+@media (max-width: 640px) {
+  .rt-row-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

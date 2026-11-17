@@ -113,3 +113,59 @@ class SetUpdate(BaseModel):
 class SessionExerciseIn(BaseModel):
     exercise_id: int
     target_rest_sec: int | None = Field(None, ge=0, le=1800)  # None = exercise default
+
+
+# --- phase 3: routines, settings
+
+MAX_ROUTINE_ITEMS = 20
+Intensity = Literal["light", "moderate", "vigorous"]
+
+
+class RoutineItemIn(BaseModel):
+    exercise_id: int
+    target_sets: int | None = Field(3, ge=1, le=20)
+    target_reps: int | None = Field(None, ge=1, le=200)
+    target_weight: float | None = Field(None, ge=0, le=2000)
+    rest_sec: int | None = Field(None, ge=0, le=1800)
+    superset_with_previous: bool = False
+
+
+class RoutineIn(BaseModel):
+    name: str = Field(max_length=60)
+    notes: str | None = Field(None, max_length=300)
+    items: list[RoutineItemIn] = Field(default_factory=list)
+
+    @field_validator("name", "notes", mode="before")
+    @classmethod
+    def _strip(cls, v):
+        return _strip(v)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _name_required(cls, v):
+        if not (isinstance(v, str) and v.strip()):
+            raise ValueError("name is required")
+        return v
+
+    @field_validator("items")
+    @classmethod
+    def _items(cls, v):
+        if not v:
+            raise ValueError("add at least one exercise")
+        if len(v) > MAX_ROUTINE_ITEMS:
+            raise ValueError(f"at most {MAX_ROUTINE_ITEMS} exercises")
+        return v
+
+
+class SettingsIn(BaseModel):
+    body_weight: float | None = Field(None, ge=20, le=1000)
+    unit: Unit = "lb"
+    intensity: Intensity = "moderate"
+
+
+class CaloriesIn(BaseModel):
+    calories: int | None = Field(None, ge=0, le=5000)  # None = back to the estimate
+
+
+class GroupIn(BaseModel):
+    superset_with_previous: bool

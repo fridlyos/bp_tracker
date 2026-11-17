@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from .modules.bp.schemas import ReadingIn
 from .modules.meds.schemas import MedIn
-from .modules.workout.schemas import ExerciseIn, SetIn
+from .modules.workout.schemas import ExerciseIn, RoutineIn, RoutineItemIn, SetIn, SettingsIn
 
 FORMAT = "my-apps-backup"
 VERSION = 1
@@ -46,7 +46,19 @@ def export_user(conn, user_id: int, username: str) -> dict:
             for r in q("SELECT name, category, equipment, track_reps, track_weight, unit, default_rest_sec,"
                        " notes, active FROM workout_exercises WHERE user_id = ? ORDER BY id")],
         "workout_sessions": _export_sessions(conn, user_id),
+        "workout_routines": _export_routines(conn, user_id),
+        "workout_settings": next(iter(q("SELECT body_weight, unit, intensity FROM workout_settings"
+                                        " WHERE user_id = ?")), None),
     }
+
+
+def _export_routines(conn, user_id: int) -> list[dict]:
+    from .modules.workout import service as wo
+    return [{"name": r["name"], "notes": r["notes"],
+             "items": [{"exercise": i["name"], **{k: i[k] for k in ("target_sets", "target_reps", "target_weight",
+                                                                   "rest_sec", "superset_with_previous")}}
+                       for i in r["items"]]}
+            for r in wo.list_routines(conn, user_id)]
 
 
 _SET_COLS = ("uid", "reps", "weight", "unit", "started_at", "ended_at", "rpe", "tempo", "note")
@@ -54,20 +66,24 @@ _SET_COLS = ("uid", "reps", "weight", "unit", "started_at", "ended_at", "rpe", "
 
 def _export_sessions(conn, user_id: int) -> list[dict]:
     out = []
-    for s in conn.execute("SELECT id, started_at, ended_at, notes FROM workout_sessions WHERE user_id = ?"
-                          " ORDER BY started_at", (user_id,)).fetchall():
+    for s in conn.execute(
+            "SELECT s.id, s.started_at, s.ended_at, s.notes, s.calories, r.name AS routine FROM workout_sessions s"
+            " LEFT JOIN workout_routines r ON r.id = s.routine_id AND r.user_id = s.user_id"
+            " WHERE s.user_id = ? ORDER BY s.started_at", (user_id,)).fetchall():
         exs = []
         for se in conn.execute(
-                "SELECT se.id, e.name, se.position, se.group_id, se.target_rest_sec FROM workout_session_exercises se"
+                "SELECT se.id, e.name, se.position, se.group_id, se.target_rest_sec, se.target_sets, se.target_reps,"
+                " se.target_weight FROM workout_session_exercises se"
                 " JOIN workout_exercises e ON e.id = se.exercise_id WHERE se.session_id = ? ORDER BY se.position",
                 (s["id"],)).fetchall():
             sets = [dict(r) for r in conn.execute(
                 f"SELECT {', '.join(_SET_COLS)} FROM workout_sets WHERE session_exercise_id = ? AND user_id = ?"
                 " ORDER BY started_at", (se["id"], user_id))]
             exs.append({"exercise": se["name"], "position": se["position"], "group_id": se["group_id"],
-                        "target_rest_sec": se["target_rest_sec"], "sets": sets})
+                        "target_rest_sec": se["target_rest_sec"], "target_sets": se["target_sets"],
+                        "target_reps": se["target_reps"], "target_weight": se["target_weight"], "sets": sets})
         out.append({"started_at": s["started_at"], "ended_at": s["ended_at"], "notes": s["notes"],
-                    "exercises": exs})
+                    "calories": s["calories"], "routine": s["routine"], "exercises": exs})
     return out
 
 
@@ -152,6 +168,16 @@ def restore_user(conn, user_id: int, data) -> dict:
             cur = conn.execute("INSERT OR IGNORE INTO med_doses (user_id, med_id, scheduled_for, status,"
                                " logged_at) VALUES (?,?,?,?,?)", (user_id, med_id, slot, d["status"], logged))
             n["added" if cur.rowcount else "skipped"] += 1
+    ws = data.get("workout_settings")
+    if isinstance(ws, dict) and not conn.execute("SELECT 1 FROM workout_settings WHERE user_id = ?",
+                                                 (user_id,)).fetchone():
+        try:  # only into an account that has no settings yet (never overwrite)
+            from .modules.workout import service as wo
+            wo.save_settings(conn, user_id, SettingsIn(**{k: ws.get(k) for k in ("body_weight", "unit", "intensity")
+                                                          if ws.get(k) is not None}))
+            n["added"] += 1
+        except (ValidationError, TypeError):
+            n["invalid"] += 1
     _restore_workout(conn, user_id, rows, n)
     conn.commit()
     return n
@@ -185,6 +211,8 @@ def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
              e.default_rest_sec, e.notes, 0 if r.get("active") is False else 1)).lastrowid
         n["added"] += 1
 
+    routine_ids = _restore_routines(conn, user_id, rows, n, ex_ids)
+
     for s in rows("workout_sessions"):
         start, end = s.get("started_at"), s.get("ended_at")
         if not (isinstance(start, str) and _SECOND.match(start)) or \
@@ -198,8 +226,13 @@ def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
             n["skipped"] += 1
         else:
             notes = s.get("notes") if isinstance(s.get("notes"), str) else None
-            sid = conn.execute("INSERT INTO workout_sessions (user_id, started_at, ended_at, notes) VALUES (?,?,?,?)",
-                               (user_id, start, end, notes[:300] if notes else None)).lastrowid
+            kcal = s.get("calories")
+            kcal = kcal if isinstance(kcal, int) and not isinstance(kcal, bool) and 0 <= kcal <= 5000 else None
+            rname = s.get("routine")
+            sid = conn.execute(
+                "INSERT INTO workout_sessions (user_id, started_at, ended_at, notes, calories, routine_id)"
+                " VALUES (?,?,?,?,?,?)", (user_id, start, end, notes[:300] if notes else None, kcal,
+                                          routine_ids.get(rname.lower()) if isinstance(rname, str) else None)).lastrowid
             n["added"] += 1
         for x in s.get("exercises") if isinstance(s.get("exercises"), list) else []:
             ex_id = ex_ids.get(x.get("exercise", "").lower()) if isinstance(x, dict) and \
@@ -213,12 +246,16 @@ def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
                 se_id = row[0]
             else:
                 rest = x.get("target_rest_sec")
+                tgt = lambda k, hi, typ=int: x.get(k) if isinstance(x.get(k), typ) and not isinstance(  # noqa: E731
+                    x.get(k), bool) and 0 <= x.get(k) <= hi else None
                 se_id = conn.execute(
                     "INSERT INTO workout_session_exercises (session_id, exercise_id, position, group_id,"
-                    " target_rest_sec) VALUES (?,?,?,?,?)",
+                    " target_rest_sec, target_sets, target_reps, target_weight) VALUES (?,?,?,?,?,?,?,?)",
                     (sid, ex_id, x.get("position") if isinstance(x.get("position"), int) else 0,
                      x.get("group_id") if isinstance(x.get("group_id"), int) else None,
-                     rest if isinstance(rest, int) and 0 <= rest <= 1800 else 90)).lastrowid
+                     rest if isinstance(rest, int) and 0 <= rest <= 1800 else 90,
+                     tgt("target_sets", 20), tgt("target_reps", 200),
+                     tgt("target_weight", 2000, (int, float)))).lastrowid
             for st in x.get("sets") if isinstance(x.get("sets"), list) else []:
                 try:
                     v = SetIn(**{k: st.get(k) for k in _SET_COLS}, session_exercise_id=se_id)
@@ -239,6 +276,33 @@ def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
                     (uid, user_id, se_id, v.reps, v.weight, v.unit, v.started_at.isoformat(timespec="seconds"),
                      v.ended_at.isoformat(timespec="seconds"), v.rpe, v.tempo, v.note))
                 n["added"] += 1
+
+
+def _restore_routines(conn, user_id: int, rows, n: dict, ex_ids: dict) -> dict:
+    """Routines (by name).
+    Returns routine name (lowercased) -> id for linking sessions."""
+    from .modules.workout import service as wo
+    out = {r["name"].lower(): r["id"] for r in wo.list_routines(conn, user_id)}
+    for r in rows("workout_routines"):
+        try:
+            items = []
+            for i in r.get("items") or []:
+                ex = ex_ids.get(i.get("exercise", "").lower()) if isinstance(i.get("exercise"), str) else None
+                if ex is None:
+                    raise ValueError("unknown exercise")
+                items.append(RoutineItemIn(exercise_id=ex, **{k: i.get(k) for k in (
+                    "target_sets", "target_reps", "target_weight", "rest_sec") if i.get(k) is not None},
+                    superset_with_previous=bool(i.get("superset_with_previous"))))
+            rt = RoutineIn(name=r.get("name"), notes=r.get("notes"), items=items)
+        except (ValidationError, TypeError, ValueError, AttributeError):
+            n["invalid"] += 1
+            continue
+        if rt.name.lower() in out:
+            n["skipped"] += 1
+            continue
+        out[rt.name.lower()] = wo.save_routine(conn, user_id, rt)
+        n["added"] += 1
+    return out
 
 
 def copy_database(conn, dest_path: str) -> None:

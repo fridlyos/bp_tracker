@@ -230,6 +230,8 @@ def session_detail(conn, user_id: int, session_id: int) -> dict | None:
             sets.append(_set_dict(r, prev_end) | {"prs": prs.get(r["uid"], [])})
             prev_end = r["ended_at"]
         exercises.append({
+            "target_sets": se["target_sets"], "target_reps": se["target_reps"],
+            "target_weight": se["target_weight"],
             "pr_kinds": list(pr_kinds(bool(se["track_reps"]), bool(se["track_weight"]))),
             "best_before": best_before,
             "id": se["id"], "exercise_id": se["exercise_id"], "name": se["name"],
@@ -239,9 +241,15 @@ def session_detail(conn, user_id: int, session_id: int) -> dict | None:
             "previous": last_sets(conn, user_id, se["exercise_id"], before_session=session_id)})
     all_sets = [s for e in exercises for s in e["sets"]]
     end = sess["ended_at"] or (max(s["ended_at"] for s in all_sets) if all_sets else None)
+    duration = max(0, _secs(sess["started_at"], end)) if end else 0
+    estimate = estimate_calories(get_settings(conn, user_id), duration)
+    routine = conn.execute("SELECT name FROM workout_routines WHERE id = ? AND user_id = ?",
+                           (sess["routine_id"], user_id)).fetchone() if sess["routine_id"] else None
     return {"id": sess["id"], "started_at": sess["started_at"], "ended_at": sess["ended_at"],
             "notes": sess["notes"], "in_progress": sess["ended_at"] is None,
-            "duration_sec": _secs(sess["started_at"], end) if end else 0,
+            "duration_sec": duration, "routine": routine[0] if routine else None,
+            "calories": sess["calories"], "calories_estimate": estimate,
+            "kcal": sess["calories"] if sess["calories"] is not None else estimate,
             "exercises": exercises, "summary": _summary(all_sets)}
 
 
@@ -438,7 +446,8 @@ def weekly(conn, user_id: int, today, weeks: int = 8) -> list[dict]:
     monday = today - _td(days=today.weekday())
     start = monday - _td(weeks=weeks - 1)
     rows = {}
-    for s in conn.execute("SELECT id, started_at, ended_at FROM workout_sessions WHERE user_id = ?"
+    settings = get_settings(conn, user_id)
+    for s in conn.execute("SELECT id, started_at, ended_at, calories FROM workout_sessions WHERE user_id = ?"
                           " AND started_at >= ?", (user_id, start.isoformat())).fetchall():
         d = _date.fromisoformat(s["started_at"][:10])
         wk = d - _td(days=d.weekday())
@@ -449,10 +458,203 @@ def weekly(conn, user_id: int, today, weeks: int = 8) -> list[dict]:
         if not n_sets:
             continue
         end = s["ended_at"] or last_end
-        r = rows.setdefault(wk, {"workouts": 0, "sets": 0, "time_sec": 0})
+        r = rows.setdefault(wk, {"workouts": 0, "sets": 0, "time_sec": 0, "kcal": None})
+        secs = max(0, _secs(s["started_at"], end))
         r["workouts"] += 1
         r["sets"] += n_sets
-        r["time_sec"] += max(0, _secs(s["started_at"], end))
+        r["time_sec"] += secs
+        kcal = s["calories"] if s["calories"] is not None else estimate_calories(settings, secs)
+        if kcal is not None:
+            r["kcal"] = (r["kcal"] or 0) + kcal
     return [{"week": (monday - _td(weeks=i)).isoformat(),
-             **rows.get(monday - _td(weeks=i), {"workouts": 0, "sets": 0, "time_sec": 0})}
+             **rows.get(monday - _td(weeks=i), {"workouts": 0, "sets": 0, "time_sec": 0, "kcal": None})}
             for i in range(weeks)]
+
+
+# --- phase 3: settings & calories
+#
+# Estimate = MET x body weight (kg) x hours, the standard MET method. MET
+# values from the 2024 Adult Compendium of Physical Activities: 02054
+# resistance training, multiple exercises 8-15 reps (3.5); 02052 squats /
+# deadlift (5.0); powerlifting / bodybuilding, vigorous effort (6.0).
+# A rough estimate: the user can overwrite it per workout (sessions.calories).
+
+MET = {"light": 3.5, "moderate": 5.0, "vigorous": 6.0}
+
+
+def get_settings(conn, user_id: int) -> dict:
+    row = conn.execute("SELECT body_weight, unit, intensity FROM workout_settings WHERE user_id = ?",
+                       (user_id,)).fetchone()
+    return dict(row) if row else {"body_weight": None, "unit": "lb", "intensity": "moderate"}
+
+
+def save_settings(conn, user_id: int, s) -> None:
+    conn.execute("INSERT INTO workout_settings (user_id, body_weight, unit, intensity) VALUES (?,?,?,?)"
+                 " ON CONFLICT(user_id) DO UPDATE SET body_weight=excluded.body_weight, unit=excluded.unit,"
+                 " intensity=excluded.intensity", (user_id, s.body_weight, s.unit, s.intensity))
+    conn.commit()
+
+
+def estimate_calories(settings: dict, duration_sec: int) -> int | None:
+    bw = settings.get("body_weight")
+    if not bw or not duration_sec:
+        return None
+    kg = bw if settings.get("unit") == "kg" else bw / LB_PER_KG
+    return round(MET[settings.get("intensity") or "moderate"] * kg * duration_sec / 3600)
+
+
+def set_calories(conn, user_id: int, session_id: int, calories: int | None) -> bool:
+    cur = conn.execute("UPDATE workout_sessions SET calories = ? WHERE id = ? AND user_id = ?",
+                       (calories, session_id, user_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+# --- phase 3: supersets
+#
+# A superset is a run of consecutive exercises sharing group_id (the id of
+# the run's first member). Edits go through "linked to the one above" flags,
+# then group ids are rewritten, so runs of one never keep a group id.
+
+def _regroup(conn, table: str, parent_col: str, parent_id: int, links: dict[int, bool]) -> None:
+    rows = conn.execute(f"SELECT id, group_id FROM {table} WHERE {parent_col} = ? ORDER BY position, id",
+                        (parent_id,)).fetchall()
+    flags, prev_gid = [], object()
+    for r in rows:
+        flags.append(links.get(r["id"], r["group_id"] is not None and r["group_id"] == prev_gid))
+        prev_gid = r["group_id"]
+    runs, cur = [], []
+    for r, linked in zip(rows, flags):
+        if linked and cur:
+            cur.append(r["id"])
+        else:
+            if cur:
+                runs.append(cur)
+            cur = [r["id"]]
+    if cur:
+        runs.append(cur)
+    for run in runs:
+        gid = run[0] if len(run) > 1 else None
+        conn.executemany(f"UPDATE {table} SET group_id = ? WHERE id = ?", [(gid, i) for i in run])
+
+
+def set_superset(conn, user_id: int, se_id: int, with_previous: bool) -> int | None:
+    """Link a session exercise to the one above (or unlink). Returns the session id."""
+    se = _own_session_exercise(conn, user_id, se_id)
+    if se is None:
+        return None
+    _regroup(conn, "workout_session_exercises", "session_id", se["session_id"], {se_id: with_previous})
+    conn.commit()
+    return se["session_id"]
+
+
+# --- phase 3: routines (saved workouts)
+
+def list_routines(conn, user_id: int) -> list[dict]:
+    out = []
+    for r in conn.execute("SELECT * FROM workout_routines WHERE user_id = ? ORDER BY name COLLATE NOCASE",
+                          (user_id,)).fetchall():
+        out.append(_routine(conn, r))
+    return out
+
+
+def _routine(conn, r) -> dict:
+    items, prev_gid = [], object()
+    for i in conn.execute(
+            "SELECT i.*, e.name, e.unit, e.track_reps, e.track_weight, e.default_rest_sec, e.active"
+            " FROM workout_routine_items i JOIN workout_exercises e ON e.id = i.exercise_id"
+            " WHERE i.routine_id = ? ORDER BY i.position", (r["id"],)):
+        items.append({"exercise_id": i["exercise_id"], "name": i["name"], "unit": i["unit"],
+                      "track_reps": bool(i["track_reps"]), "track_weight": bool(i["track_weight"]),
+                      "target_sets": i["target_sets"], "target_reps": i["target_reps"],
+                      "target_weight": i["target_weight"], "rest_sec": i["rest_sec"],
+                      "rest": i["rest_sec"] if i["rest_sec"] is not None else i["default_rest_sec"],
+                      "group_id": i["group_id"],
+                      "superset_with_previous": i["group_id"] is not None and i["group_id"] == prev_gid})
+        prev_gid = i["group_id"]
+    return {"id": r["id"], "name": r["name"], "notes": r["notes"], "items": items}
+
+
+def get_routine(conn, user_id: int, routine_id: int) -> dict | None:
+    r = conn.execute("SELECT * FROM workout_routines WHERE id = ? AND user_id = ?",
+                     (routine_id, user_id)).fetchone()
+    return _routine(conn, r) if r else None
+
+
+def save_routine(conn, user_id: int, rt, routine_id: int | None = None) -> int | None:
+    """Create or replace a routine. Raises DuplicateName / ValueError (an
+    exercise that isn't the user's)."""
+    if conn.execute("SELECT 1 FROM workout_routines WHERE user_id = ? AND name = ? COLLATE NOCASE"
+                    " AND id IS NOT ?", (user_id, rt.name, routine_id)).fetchone():
+        raise DuplicateName(f"You already have a routine called {rt.name}")
+    own = {r[0] for r in conn.execute("SELECT id FROM workout_exercises WHERE user_id = ?", (user_id,))}
+    if any(i.exercise_id not in own for i in rt.items):
+        raise ValueError("unknown exercise")
+    if routine_id is None:
+        routine_id = conn.execute("INSERT INTO workout_routines (user_id, name, notes) VALUES (?,?,?)",
+                                  (user_id, rt.name, rt.notes)).lastrowid
+    elif conn.execute("UPDATE workout_routines SET name = ?, notes = ? WHERE id = ? AND user_id = ?",
+                      (rt.name, rt.notes, routine_id, user_id)).rowcount == 0:
+        return None
+    conn.execute("DELETE FROM workout_routine_items WHERE routine_id = ?", (routine_id,))
+    links = {}
+    for pos, i in enumerate(rt.items, 1):
+        item_id = conn.execute(
+            "INSERT INTO workout_routine_items (routine_id, exercise_id, position, target_sets, target_reps,"
+            " target_weight, rest_sec) VALUES (?,?,?,?,?,?,?)",
+            (routine_id, i.exercise_id, pos, i.target_sets, i.target_reps, i.target_weight, i.rest_sec)).lastrowid
+        links[item_id] = i.superset_with_previous and pos > 1
+    _regroup(conn, "workout_routine_items", "routine_id", routine_id, links)
+    conn.commit()
+    return routine_id
+
+
+def delete_routine(conn, user_id: int, routine_id: int) -> None:
+    conn.execute("DELETE FROM workout_routines WHERE id = ? AND user_id = ?", (routine_id, user_id))
+    conn.commit()
+
+
+def start_routine(conn, user_id: int, routine_id: int, now: datetime) -> int | None:
+    """Start a workout from a routine: its exercises, order, supersets,
+    targets and rests. If a workout is already in progress, return that one."""
+    rt = get_routine(conn, user_id, routine_id)
+    if rt is None:
+        return None
+    current = active_session(conn, user_id, now)
+    if current:
+        return current["id"]
+    sid = conn.execute("INSERT INTO workout_sessions (user_id, started_at, routine_id) VALUES (?,?,?)",
+                       (user_id, _iso(now), routine_id)).lastrowid
+    gid_map = {}
+    for pos, i in enumerate(rt["items"], 1):
+        se_id = conn.execute(
+            "INSERT INTO workout_session_exercises (session_id, exercise_id, position, target_rest_sec,"
+            " target_sets, target_reps, target_weight) VALUES (?,?,?,?,?,?,?)",
+            (sid, i["exercise_id"], pos, i["rest"], i["target_sets"], i["target_reps"],
+             i["target_weight"])).lastrowid
+        if i["group_id"] is not None:
+            gid_map.setdefault(i["group_id"], se_id)
+            conn.execute("UPDATE workout_session_exercises SET group_id = ? WHERE id = ?",
+                         (gid_map[i["group_id"]], se_id))
+    conn.commit()
+    return sid
+
+
+def routine_from_session(conn, user_id: int, session_id: int, name: str) -> int | None:
+    """Save a workout as a routine: same exercises, order, supersets and
+    rests; targets = number of sets done, the first set's reps, the top weight."""
+    from .schemas import RoutineIn, RoutineItemIn
+    d = session_detail(conn, user_id, session_id)
+    if d is None or not d["exercises"]:
+        return None
+    items, prev_gid = [], object()
+    for e in d["exercises"]:
+        sets = e["sets"]
+        items.append(RoutineItemIn(
+            exercise_id=e["exercise_id"], target_sets=min(20, len(sets)) or e.get("target_sets") or 3,
+            target_reps=(sets[0]["reps"] or None) if sets and e["track_reps"] else e.get("target_reps"),
+            target_weight=e["summary"]["top_weight"] if e["track_weight"] else None,
+            rest_sec=e["target_rest_sec"],
+            superset_with_previous=e["group_id"] is not None and e["group_id"] == prev_gid))
+        prev_gid = e["group_id"]
+    return save_routine(conn, user_id, RoutineIn(name=name, items=items))

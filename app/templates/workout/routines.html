@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "workout/_fmt.html" import num %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Routines</h1>
+    <p class="page-subtitle"><a href="/workout">← Workout</a> · saved workouts you can start in one tap</p>
+  </div>
+</div>
+<div class="add-row"><a class="button-link primary" href="/workout/routines/new">+ Routine</a></div>
+{% if routines %}
+<section class="panel">
+  <ul class="entry-list med-list">
+    {% for r in routines %}
+    <li>
+      <span class="entry-main">
+        <span class="entry-name">{{ r.name }}</span>
+        <span class="entry-meta">{% for i in r["items"] %}{% if i.superset_with_previous %} + {% elif not loop.first %} · {% endif %}{{ i.name }}{% if i.target_sets %} {{ i.target_sets }}×{{ i.target_reps or "" }}{% endif %}{% endfor %}</span>
+      </span>
+      <span class="med-actions">
+        <form method="post" action="/workout/routines/{{ r.id }}/start" class="inline">
+          <button type="submit" class="icon-btn" aria-label="Start {{ r.name }}" title="Start">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+        </form>
+        <a class="icon-btn" href="/workout/routines/{{ r.id }}" aria-label="Edit {{ r.name }}" title="Edit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></a>
+        <form method="post" action="/workout/routines/{{ r.id }}/delete" class="inline"
+              data-confirm="Delete the routine {{ r.name }}? Workouts you did with it stay in History.">
+          <button type="submit" class="icon-btn danger-icon" aria-label="Delete {{ r.name }}" title="Delete">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<section class="panel"><p class="muted">No routines yet. Build one here, or finish a workout and tap “Save as routine”.</p></section>
+{% endif %}
+{% endblock %}

@@ -263,8 +263,144 @@ def test_weekly_summary_and_home():
         uid = conn.execute("SELECT id FROM users WHERE username = ?", (c.username,)).fetchone()[0]
         weeks = service.weekly(conn, uid, date(2026, 11, 19), 3)
         prs = service.recent_prs(conn, uid, "2026-11-01")
-    assert weeks[0] == {"week": "2026-11-16", "workouts": 2, "sets": 3, "time_sec": 160 + 40}
+    assert weeks[0] == {"week": "2026-11-16", "workouts": 2, "sets": 3, "time_sec": 160 + 40, "kcal": None}
     assert weeks[1]["workouts"] == 0 and len(weeks) == 3
     assert [(p["exercise"], p["kind"], p["value"]) for p in prs] == [("Row", "weight", 100.0), ("Row", "e1rm", 133.3)]
     assert c.get("/api/workout/summary").status_code == 200
     assert "By week" in c.get("/workout/history").text
+
+
+# --- phase 3: routines, supersets, RPE/tempo, calories
+
+def test_routine_crud_start_and_superset():
+    c = _user()
+    bench = _exercise(c, "Bench", default_rest_sec=120)
+    row = _exercise(c, "Row", default_rest_sec=60)
+    plank = _exercise(c, "Plank", track_reps=False, track_weight=False)
+    body = {"name": "Push pull", "items": [
+        {"exercise_id": bench["id"], "target_sets": 3, "target_reps": 8, "target_weight": 135},
+        {"exercise_id": row["id"], "target_sets": 3, "target_reps": 10, "superset_with_previous": True},
+        {"exercise_id": plank["id"], "target_sets": 2, "rest_sec": 30, "superset_with_previous": False}]}
+    rt = c.post("/api/workout/routines", json=body).json()
+    assert [i["superset_with_previous"] for i in rt["items"]] == [False, True, False]
+    assert rt["items"][0]["group_id"] == rt["items"][1]["group_id"] is not None and rt["items"][2]["group_id"] is None
+    assert [i["rest"] for i in rt["items"]] == [120, 60, 30]
+    assert c.post("/api/workout/routines", json=body | {"name": "push PULL"}).status_code == 409
+    assert c.post("/api/workout/routines", json={"name": "x", "items": []}).status_code == 422
+    other = _user()
+    assert other.post("/api/workout/routines", json=body).status_code == 422  # not their exercises
+
+    s = c.post(f"/api/workout/routines/{rt['id']}/start").json()
+    assert s["routine"] == "Push pull"
+    ex = s["exercises"]
+    assert [e["name"] for e in ex] == ["Bench", "Row", "Plank"]
+    assert ex[0]["group_id"] == ex[1]["group_id"] == ex[0]["id"] and ex[2]["group_id"] is None
+    assert (ex[0]["target_sets"], ex[0]["target_reps"], ex[0]["target_weight"]) == (3, 8, 135)
+    assert ex[2]["target_rest_sec"] == 30
+    # starting again while one is in progress resumes it
+    assert c.post(f"/api/workout/routines/{rt['id']}/start").json()["id"] == s["id"]
+
+    # unlink / relink supersets in the live session
+    d = c.patch(f"/api/workout/session-exercises/{ex[1]['id']}", json={"superset_with_previous": False}).json()
+    assert all(e["group_id"] is None for e in d["exercises"])
+    d = c.patch(f"/api/workout/session-exercises/{ex[2]['id']}", json={"superset_with_previous": True}).json()
+    assert [e["group_id"] for e in d["exercises"]] == [None, ex[1]["id"], ex[1]["id"]]
+    assert other.patch(f"/api/workout/session-exercises/{ex[2]['id']}",
+                       json={"superset_with_previous": False}).status_code == 404
+
+    # web: list, start button, edit form, save from a finished session
+    assert "Push pull" in c.get("/workout/routines").text
+    c.put("/api/workout/sets", json=[_set(ex[0]["id"], "2026-11-17T18:00:00", "2026-11-17T18:00:40", reps=8,
+                                          weight=140, rpe=8, tempo="3-1-1-0"),
+                                     _set(ex[0]["id"], "2026-11-17T18:03:00", "2026-11-17T18:03:40", reps=7,
+                                          weight=140)])
+    got = c.get(f"/api/workout/sessions/{s['id']}").json()["exercises"][0]["sets"][0]
+    assert got["rpe"] == 8 and got["tempo"] == "3-1-1-0" and got["est_tut_sec"] == 40
+    c.post(f"/workout/session/{s['id']}/finish")
+    r = c.post(f"/workout/session/{s['id']}/save-routine", data={"name": "Bench day"}, follow_redirects=False)
+    rid = int(r.headers["location"].rsplit("/", 1)[1])
+    saved = next(x for x in c.get("/api/workout/routines").json() if x["id"] == rid)
+    assert saved["items"][0] | {} and (saved["items"][0]["target_sets"], saved["items"][0]["target_reps"],
+                                       saved["items"][0]["target_weight"]) == (2, 8, 140)
+    assert [i["superset_with_previous"] for i in saved["items"]] == [False, False, True]
+    assert "Bench day" in c.get(f"/workout/routines/{rid}").text
+
+
+def test_routine_web_form():
+    c = _user()
+    a, b = _exercise(c, "Squat"), _exercise(c, "Lunge")
+    r = c.post("/workout/routines", data={
+        "name": "Legs", "notes": "",
+        "item_exercise": [str(a["id"]), str(b["id"]), ""], "item_sets": ["4", "3", "3"],
+        "item_reps": ["5", "12", ""], "item_weight": ["225", "", ""], "item_rest": ["180", "", ""],
+        "item_superset": ["1"]}, follow_redirects=False)
+    assert r.status_code == 303, r.text
+    rt = c.get("/api/workout/routines").json()[0]
+    assert [(i["name"], i["target_sets"], i["target_reps"], i["superset_with_previous"]) for i in rt["items"]] == \
+        [("Squat", 4, 5, False), ("Lunge", 3, 12, True)]
+    assert rt["items"][0]["target_weight"] == 225 and rt["items"][0]["rest_sec"] == 180
+    r = c.post("/workout/routines", data={"name": "Empty", "item_exercise": [""]})
+    assert r.status_code == 422 and "at least one exercise" in r.text
+    home = c.get("/workout").text
+    assert "Start a routine" in home and "Legs" in home
+    r = c.post(f"/workout/routines/{rt['id']}/start", follow_redirects=False)
+    assert r.headers["location"].startswith("/workout/session/")
+
+
+def test_calories_estimate_and_override():
+    c = _user()
+    _, s, se = _session_with_squat(c)
+    c.put("/api/workout/sets", json=[_set(se, "2026-11-17T18:00:00", "2026-11-17T18:00:40")])
+    with db.connect() as conn:  # a 60-minute workout
+        conn.execute("UPDATE workout_sessions SET started_at = '2026-11-17T17:01:00' WHERE id = ?", (s["id"],))
+        conn.commit()
+    c.post(f"/api/workout/sessions/{s['id']}/finish")
+    d = c.get(f"/api/workout/sessions/{s['id']}").json()
+    assert d["duration_sec"] == 3600 - 20 and d["calories_estimate"] is None and d["kcal"] is None
+    assert "Set your body weight" in c.get(f"/workout/session/{s['id']}").text
+
+    r = c.post("/workout/settings", data={"body_weight": "198.4", "unit": "lb", "intensity": "moderate"},
+               follow_redirects=False)
+    assert r.status_code == 303
+    d = c.get(f"/api/workout/sessions/{s['id']}").json()
+    # 5.0 MET x 90 kg x 0.9944 h = 447.5
+    assert d["calories_estimate"] == round(5.0 * 198.4 / 2.20462 * (3580 / 3600)) and d["kcal"] == d["calories_estimate"]
+    c.put("/api/workout/settings", json={"body_weight": 90, "unit": "kg", "intensity": "vigorous"})
+    assert c.get(f"/api/workout/sessions/{s['id']}").json()["calories_estimate"] == round(6.0 * 90 * 3580 / 3600)
+
+    c.post(f"/workout/session/{s['id']}/calories", data={"calories": "380"})
+    d = c.get(f"/api/workout/sessions/{s['id']}").json()
+    assert d["calories"] == 380 and d["kcal"] == 380
+    assert "380 kcal" in c.get("/workout/history").text
+    assert c.post(f"/workout/session/{s['id']}/calories", data={"calories": "-5"},
+                  follow_redirects=False).headers["location"].endswith("error=kcal")
+    c.post(f"/workout/session/{s['id']}/calories", data={"calories": ""})  # back to the estimate
+    assert c.get(f"/api/workout/sessions/{s['id']}").json()["calories"] is None
+    assert c.post("/workout/settings", data={"body_weight": "5", "unit": "lb"}).status_code == 422
+
+
+def test_backup_includes_phase3():
+    a = _user()
+    ex = _exercise(a, "Bench")
+    rt = a.post("/api/workout/routines", json={"name": "Push", "items": [
+        {"exercise_id": ex["id"], "target_sets": 3, "target_reps": 8, "target_weight": 135}]}).json()
+    s = a.post(f"/api/workout/routines/{rt['id']}/start").json()
+    se = s["exercises"][0]["id"]
+    a.put("/api/workout/sets", json=[_set(se, "2026-11-17T18:00:00", "2026-11-17T18:00:40", rpe=9)])
+    a.post(f"/api/workout/sessions/{s['id']}/finish")
+    a.put(f"/api/workout/sessions/{s['id']}/calories", json={"calories": 250})
+    a.put("/api/workout/settings", json={"body_weight": 180, "unit": "lb", "intensity": "light"})
+    data = a.get("/backup/download").json()
+    assert data["workout_routines"][0]["items"][0]["exercise"] == "Bench"
+    assert data["workout_sessions"][0]["calories"] == 250 and data["workout_sessions"][0]["routine"] == "Push"
+    assert data["workout_settings"] == {"body_weight": 180, "unit": "lb", "intensity": "light"}
+
+    b = _user()
+    up = lambda: b.post("/backup/restore", files={"file": ("b.json", io.BytesIO(json.dumps(data).encode()),  # noqa
+                                                           "application/json")})
+    assert up().status_code == 200
+    got = b.get("/api/workout/sessions").json()[0]
+    assert got["calories"] == 250 and got["routine"] == "Push" and got["exercises"][0]["target_reps"] == 8
+    assert got["exercises"][0]["sets"][0]["rpe"] == 9
+    assert b.get("/api/workout/settings").json()["intensity"] == "light"
+    assert "Added 0 items" in up().text

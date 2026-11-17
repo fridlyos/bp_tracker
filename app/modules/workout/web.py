@@ -12,7 +12,7 @@ from ...deps import current_user
 from ...schemas import User
 from ...ui import redirect, render
 from . import service
-from .schemas import ExerciseIn
+from .schemas import MAX_ROUTINE_ITEMS, CaloriesIn, ExerciseIn, RoutineIn, SettingsIn
 
 router = APIRouter(prefix="/workout")
 
@@ -36,7 +36,9 @@ def home(request: Request, conn=Depends(db.get_db), user: User | None = Depends(
         "prs": service.recent_prs(conn, user.id, (now.date() - timedelta(days=30)).isoformat(), 5),
         "active": service.session_detail(conn, user.id, active["id"]) if active else None,
         "recent": [s for s in service.recent_sessions(conn, user.id, 6) if not s["in_progress"]][:5],
-        "has_exercises": bool(service.list_exercises(conn, user.id, active_only=True))})
+        "has_exercises": bool(service.list_exercises(conn, user.id, active_only=True)),
+        "routines": service.list_routines(conn, user.id),
+        "settings": service.get_settings(conn, user.id)})
 
 
 @router.post("/start")
@@ -56,7 +58,10 @@ def session_page(session_id: int, request: Request, conn=Depends(db.get_db),
     if detail is None:
         return redirect("/workout")
     return render(request, "workout/session.html", user, {
-        "s": detail, "exercises": [e.model_dump() for e in service.list_exercises(conn, user.id, True)]})
+        "s": detail, "exercises": [e.model_dump() for e in service.list_exercises(conn, user.id, True)],
+        "error": {"name": "You already have a routine with that name.",
+                  "kcal": "Calories must be a whole number from 0 to 5000."}.get(
+                      request.query_params.get("error", ""))})
 
 
 @router.post("/session/{session_id}/finish")
@@ -207,3 +212,160 @@ def exercise_delete(exercise_id: int, conn=Depends(db.get_db), user: User | None
         return redirect("/login")
     service.delete_exercise(conn, user.id, exercise_id)
     return redirect("/workout/exercises")
+
+
+# --- phase 3: routines, calories, settings
+
+def _num(v: str, cast=int):
+    v = (v or "").strip()
+    if not v:
+        return None
+    try:
+        return cast(v)
+    except ValueError:
+        return v  # let pydantic report it
+
+
+def _routine_form(conn, user, request, routine=None, form=None, error=None, status=200):
+    resp = render(request, "workout/routine_form.html", user, {
+        "edit": routine, "f": form or routine or {"name": "", "notes": "", "items": []},
+        "exercises": service.list_exercises(conn, user.id, active_only=True),
+        "error": error, "rows": MAX_ROUTINE_ITEMS})
+    resp.status_code = status
+    return resp
+
+
+@router.get("/routines")
+def routines(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return render(request, "workout/routines.html", user, {"routines": service.list_routines(conn, user.id)})
+
+
+@router.get("/routines/new")
+def routine_new(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return _routine_form(conn, user, request)
+
+
+@router.get("/routines/{routine_id}")
+def routine_edit(routine_id: int, request: Request, conn=Depends(db.get_db),
+                 user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    rt = service.get_routine(conn, user.id, routine_id)
+    if rt is None:
+        return redirect("/workout/routines")
+    return _routine_form(conn, user, request, rt)
+
+
+async def _routine_save(request: Request, conn, user, routine_id: int | None):
+    edit = service.get_routine(conn, user.id, routine_id) if routine_id else None
+    if routine_id and edit is None:
+        return redirect("/workout/routines")
+    f = await request.form()
+    ex_ids = f.getlist("item_exercise")
+    col = lambda name: f.getlist(name) + [""] * (len(ex_ids) - len(f.getlist(name)))  # noqa: E731
+    sets, reps, weight, rest = col("item_sets"), col("item_reps"), col("item_weight"), col("item_rest")
+    linked = set(f.getlist("item_superset"))
+    items = []
+    for i, ex in enumerate(ex_ids):
+        if not ex:
+            continue
+        items.append({"exercise_id": _num(ex), "target_sets": _num(sets[i]), "target_reps": _num(reps[i]),
+                      "target_weight": _num(weight[i], float), "rest_sec": _num(rest[i]),
+                      "superset_with_previous": str(i) in linked and bool(items)})
+    form = {"name": f.get("name", ""), "notes": f.get("notes", ""), "items": items}
+    try:
+        rt = RoutineIn(**form)
+        rid = service.save_routine(conn, user.id, rt, routine_id)
+    except ValidationError as err:
+        return _routine_form(conn, user, request, edit, form, _error_text(err), 422)
+    except (service.DuplicateName, ValueError) as err:
+        return _routine_form(conn, user, request, edit, form, str(err), 422)
+    return redirect("/workout/routines" if rid else "/workout/routines")
+
+
+@router.post("/routines")
+async def routine_create(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return await _routine_save(request, conn, user, None)
+
+
+@router.post("/routines/{routine_id}")
+async def routine_update(routine_id: int, request: Request, conn=Depends(db.get_db),
+                         user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return await _routine_save(request, conn, user, routine_id)
+
+
+@router.post("/routines/{routine_id}/delete")
+def routine_delete(routine_id: int, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    service.delete_routine(conn, user.id, routine_id)
+    return redirect("/workout/routines")
+
+
+@router.post("/routines/{routine_id}/start")
+def routine_start(routine_id: int, request: Request, conn=Depends(db.get_db),
+                  user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    sid = service.start_routine(conn, user.id, routine_id, clock.local_now(request))
+    return redirect(f"/workout/session/{sid}" if sid else "/workout/routines")
+
+
+@router.post("/session/{session_id}/save-routine")
+def save_as_routine(session_id: int, request: Request, name: str = Form(""), conn=Depends(db.get_db),
+                    user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    name = name.strip()[:60] or "Workout " + clock.local_today(request).isoformat()
+    try:
+        rid = service.routine_from_session(conn, user.id, session_id, name)
+    except service.DuplicateName:
+        return redirect(f"/workout/session/{session_id}?error=name")
+    return redirect(f"/workout/routines/{rid}" if rid else f"/workout/session/{session_id}")
+
+
+@router.post("/session/{session_id}/calories")
+def session_calories(session_id: int, calories: str = Form(""), conn=Depends(db.get_db),
+                     user: User | None = Depends(current_user)):
+    """Blank = go back to the estimate."""
+    if user is None:
+        return redirect("/login")
+    try:
+        kcal = CaloriesIn(calories=_num(calories)).calories
+    except ValidationError:
+        return redirect(f"/workout/session/{session_id}?error=kcal")
+    service.set_calories(conn, user.id, session_id, kcal)
+    return redirect(f"/workout/session/{session_id}")
+
+
+@router.get("/settings")
+def settings_page(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return render(request, "workout/settings.html", user, {
+        "s": service.get_settings(conn, user.id), "met": service.MET, "error": None})
+
+
+@router.post("/settings")
+def settings_save(request: Request, body_weight: str = Form(""), unit: str = Form("lb"),
+                  intensity: str = Form("moderate"), conn=Depends(db.get_db),
+                  user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    form = {"body_weight": _num(body_weight, float), "unit": unit, "intensity": intensity}
+    try:
+        service.save_settings(conn, user.id, SettingsIn(**form))
+    except ValidationError as err:
+        resp = render(request, "workout/settings.html", user, {
+            "s": form, "met": service.MET, "error": _error_text(err)})
+        resp.status_code = 422
+        return resp
+    return redirect("/workout")

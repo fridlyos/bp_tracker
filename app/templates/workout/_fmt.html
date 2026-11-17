@@ -6,7 +6,7 @@
 {%- else -%}{{ s // 3600 }}:{{ "%02d"|format(s % 3600 // 60) }}:{{ "%02d"|format(s % 60) }}
 {%- endif -%}
 {%- endmacro %}
-{% macro num(x) -%}{{ ("%g"|format(x)) if x is not none else "" }}{%- endmacro %}
+{% macro num(x) -%}{{ ("%g"|format(x)) if x is defined and x is not none else "" }}{%- endmacro %}
 {# one set: "8 × 135 lb" / "8 reps" / "135 lb" / "" (timed) #}
 {% macro setline(st, track_reps=True, track_weight=True) -%}
 {%- if track_reps and st.reps is not none %}{{ st.reps }}{% if track_weight and st.weight is not none %} × {{ num(st.weight) }} {{ st.unit }}{% else %} reps{% endif %}
@@ -15,11 +15,11 @@
 {% macro session_card(s) %}
 <li>
   <a class="entry-main session-link" href="/workout/session/{{ s.id }}">
-    <span class="entry-name">{{ s.started_at[:10] }} · {{ s.started_at[11:16] }}{% if s.in_progress %} <span class="tag">in progress</span>{% endif %}</span>
+    <span class="entry-name">{{ s.started_at[:10] }} · {{ s.started_at[11:16] }}{% if s.routine %} · {{ s.routine }}{% endif %}{% if s.in_progress %} <span class="tag">in progress</span>{% endif %}</span>
     <span class="entry-meta">
       {% if s.exercises %}{% for e in s.exercises %}{{ e.name }}{{ ", " if not loop.last }}{% endfor %}{% else %}No exercises{% endif %}
     </span>
-    <span class="entry-meta">{{ s.summary.sets }} set{{ "" if s.summary.sets == 1 else "s" }} · {{ dur(s.duration_sec) }}{% if s.summary.volume %} · {{ num(s.summary.volume) }} volume{% endif %}</span>
+    <span class="entry-meta">{{ s.summary.sets }} set{{ "" if s.summary.sets == 1 else "s" }} · {{ dur(s.duration_sec) }}{% if s.summary.volume %} · {{ num(s.summary.volume) }} volume{% endif %}{% if s.kcal is not none and not s.in_progress %} · {{ s.kcal }} kcal{% endif %}</span>
   </a>
 </li>
 {% endmacro %}

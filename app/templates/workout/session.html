@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>{% if s.in_progress %}Workout{% else %}Workout · {{ s.started_at[:10] }}{% endif %}</h1>
+    <h1>{{ s.routine or "Workout" }}{% if not s.in_progress %} · {{ s.started_at[:10] }}{% endif %}</h1>
     <p class="page-subtitle">
       Started {{ s.started_at[11:16] }}
       {% if s.in_progress %}· <span id="wo-elapsed" aria-live="off"></span>{% else %}· {{ dur(s.duration_sec) }}{% endif %}
@@ -13,6 +13,7 @@
   </div>
 </div>
 
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
 <noscript><p class="error">The workout timer needs JavaScript.</p></noscript>
 
 {# exercises and their sets: rendered by workout.js from the JSON below #}
@@ -43,6 +44,7 @@
     <span id="wo-clock-time" class="wo-clock-time">0:00</span>
     <span id="wo-clock-sub" class="wo-clock-sub"></span>
   </div>
+  <p id="wo-target" class="wo-target" hidden></p>
   <div class="wo-inputs">
     <label id="wo-reps-wrap">Reps
       <input id="wo-reps" type="number" inputmode="numeric" min="0" max="1000" step="1">
@@ -51,6 +53,20 @@
       <input id="wo-weight" type="number" inputmode="decimal" min="0" max="2000" step="0.5">
     </label>
   </div>
+  <details class="wo-more" id="wo-more">
+    <summary>RPE &amp; tempo <span class="muted" id="wo-more-sum"></span></summary>
+    <div class="wo-inputs">
+      <label>RPE <span class="muted">(effort 6–10)</span>
+        <select id="wo-rpe">
+          <option value="">—</option>
+          {% for v in ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10"] %}<option>{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Tempo <span class="muted">(e.g. 3-1-1-0)</span>
+        <input id="wo-tempo" maxlength="11" autocomplete="off" inputmode="numeric">
+      </label>
+    </div>
+  </details>
   <button id="wo-main" type="button" class="wo-main">Start set</button>
 </section>
 
@@ -58,6 +74,32 @@
   <button type="submit" class="secondary">Finish workout</button>
 </form>
 {% else %}
+<section class="panel wo-after">
+  <h2>Calories</h2>
+  <form method="post" action="/workout/session/{{ s.id }}/calories" class="row wo-kcal">
+    <label class="visually-hidden" for="wo-kcal">Calories burned</label>
+    <input id="wo-kcal" name="calories" type="number" inputmode="numeric" min="0" max="5000"
+           value="{{ s.calories if s.calories is not none else '' }}"
+           placeholder="{{ s.calories_estimate if s.calories_estimate is not none else 'kcal' }}">
+    <span class="muted">kcal</span>
+    <button type="submit" class="secondary">Save</button>
+  </form>
+  <p class="muted wo-note">
+    {% if s.calories is not none %}Your number.{% if s.calories_estimate is not none %} Estimate: {{ s.calories_estimate }} kcal; clear the box and save to use it.{% endif %}
+    {% elif s.calories_estimate is not none %}Estimate from {{ (s.duration_sec // 60) }} min and your body weight. Type your own number to replace it.
+    {% else %}<a href="/workout/settings">Set your body weight</a> for an automatic estimate, or type a number.{% endif %}
+  </p>
+</section>
+{% if s.exercises %}
+<section class="panel wo-after">
+  <h2>Save as routine</h2>
+  <form method="post" action="/workout/session/{{ s.id }}/save-routine" class="row">
+    <label class="visually-hidden" for="rt-name">Routine name</label>
+    <input id="rt-name" name="name" maxlength="60" placeholder="e.g. Push day" value="{{ s.routine or '' }}">
+    <button type="submit" class="secondary">Save</button>
+  </form>
+</section>
+{% endif %}
 <form method="post" action="/workout/session/{{ s.id }}/delete" class="inline"
       data-confirm="Delete this workout and all its sets?">
   <button type="submit" class="secondary compact">Delete workout</button>
@@ -71,6 +113,7 @@
     <div class="wo-inputs">
       <label id="wo-edit-reps-wrap">Reps <input id="wo-edit-reps" type="number" inputmode="numeric" min="0" max="1000" step="1"></label>
       <label id="wo-edit-weight-wrap">Weight <input id="wo-edit-weight" type="number" inputmode="decimal" min="0" max="2000" step="0.5"></label>
+      <label>RPE <input id="wo-edit-rpe" type="number" inputmode="decimal" min="6" max="10" step="0.5"></label>
     </div>
     <div class="dialog-actions">
       <button type="button" class="secondary danger-text" id="wo-edit-delete">Delete set</button>

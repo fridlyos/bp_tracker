@@ -160,8 +160,30 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   `best_before` + `pr_kinds` so the live page badges PRs before sync.
   Home: this week's workouts/sets/time + PRs from the last 30 days;
   History: by-week table (`service.weekly`, Mon–Sun). `/api/workout/summary`.
+- Phase 3 (`0006_workout_routines`): Routines `/workout/routines` (saved
+  workouts: ordered exercises with target sets/reps/weight, rest override,
+  "Superset" = linked to the row above; ↑/↓ reorder in JS, up to 20 rows;
+  start = new session with those exercises/targets/groups, or resume the one
+  in progress; "Save as routine" on a finished workout). Supersets: runs of
+  consecutive rows sharing `group_id` = id of the run's first row, always
+  rewritten by `service._regroup` from "linked to above" flags; live cards
+  have "Superset with above" / "Unlink" (`PATCH /api/workout/session-exercises/{id}`).
+  Live dock: target line, RPE (6–10) + tempo under "RPE & tempo" (tempo kept
+  per exercise in state, invalid tempo sent as null), auto-advance in
+  workout.js `advance()`: superset member → next member with no rest target,
+  last member → back to the first (group rest) until every target is done,
+  single exercise with its target done → next undone exercise.
+  Calories: `workout_settings` (body weight, unit, intensity) at
+  `/workout/settings`; estimate = MET × kg × hours (`service.MET`: light 3.5,
+  moderate 5.0, vigorous 6.0 — 2024 Compendium resistance-training codes);
+  `workout_sessions.calories` overrides it (blank = estimate); `kcal` in
+  session detail, history cards, home week tile and weekly table. Not synced
+  to the calorie tracker (lose_weight).
 - Backup: `workout_exercises` + nested `workout_sessions` (exercises by name,
-  sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`).
+  sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`),
+  `workout_routines` (by name, items by exercise name), `workout_settings`
+  (restored only into an account without settings), session `calories` /
+  `routine` name / per-exercise targets.
 
 ## Adding a module
 

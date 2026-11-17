@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from ... import clock, db
 from ...deps import api_user
 from . import service
-from .schemas import Exercise, ExerciseIn, SessionExerciseIn, SetIn, SetUpdate
+from .schemas import (CaloriesIn, Exercise, ExerciseIn, GroupIn, RoutineIn, SessionExerciseIn, SetIn,
+                      SetUpdate, SettingsIn)
 
 router = APIRouter(prefix="/api/workout")
 
@@ -151,3 +152,73 @@ def summary(request: Request, uid: int = Depends(api_user), conn=Depends(db.get_
     today = clock.local_today(request)
     return {"weeks": service.weekly(conn, uid, today),
             "recent_prs": service.recent_prs(conn, uid, (today - timedelta(days=30)).isoformat())}
+
+
+# --- phase 3: supersets, calories, settings, routines
+
+@router.patch("/session-exercises/{se_id}")
+def set_superset(se_id: int, body: GroupIn, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    """Link this exercise to the one above as a superset (or unlink)."""
+    sid = service.set_superset(conn, uid, se_id, body.superset_with_previous)
+    if sid is None:
+        raise HTTPException(404, "not found")
+    return service.session_detail(conn, uid, sid)
+
+
+@router.put("/sessions/{session_id}/calories")
+def set_calories(session_id: int, body: CaloriesIn, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    if not service.set_calories(conn, uid, session_id, body.calories):
+        raise HTTPException(404, "session not found")
+    return get_session(session_id, uid, conn)
+
+
+@router.get("/settings")
+def get_settings(uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    return service.get_settings(conn, uid)
+
+
+@router.put("/settings")
+def put_settings(body: SettingsIn, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    service.save_settings(conn, uid, body)
+    return service.get_settings(conn, uid)
+
+
+@router.get("/routines")
+def list_routines(uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    return service.list_routines(conn, uid)
+
+
+def _save_routine(conn, uid, body, routine_id=None):
+    try:
+        rid = service.save_routine(conn, uid, body, routine_id)
+    except service.DuplicateName as err:
+        raise HTTPException(409, str(err))
+    except ValueError as err:
+        raise HTTPException(422, str(err))
+    if rid is None:
+        raise HTTPException(404, "routine not found")
+    return service.get_routine(conn, uid, rid)
+
+
+@router.post("/routines", status_code=201)
+def create_routine(body: RoutineIn, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    return _save_routine(conn, uid, body)
+
+
+@router.put("/routines/{routine_id}")
+def update_routine(routine_id: int, body: RoutineIn, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    return _save_routine(conn, uid, body, routine_id)
+
+
+@router.delete("/routines/{routine_id}", status_code=204)
+def delete_routine(routine_id: int, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    service.delete_routine(conn, uid, routine_id)
+    return Response(status_code=204)
+
+
+@router.post("/routines/{routine_id}/start", status_code=201)
+def start_routine(routine_id: int, request: Request, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    sid = service.start_routine(conn, uid, routine_id, clock.local_now(request))
+    if sid is None:
+        raise HTTPException(404, "routine not found")
+    return service.session_detail(conn, uid, sid)
