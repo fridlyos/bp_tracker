@@ -8,6 +8,27 @@
   </div>
 </div>
 
+{% if due %}
+<section class="panel">
+  <div class="section-head"><h2>Today</h2><a href="/workout/reminders">Reminders</a></div>
+  <ul class="entry-list due-list">
+    {% for r in due %}
+    <li class="{{ 'due-done' if r.done_today else ('due-hl' if remind == r.id|string else '') }}">
+      <span class="entry-main">
+        <span class="entry-name">{{ r.name }}</span>
+        <span class="entry-meta">{% if r.done_today %}✓ Done today{% else %}Due at {{ r.at_time }}{% endif %} · {{ r.done_week }}/{{ r.goal }} this week{% if r.goal_met and not r.done_today %} · goal met{% endif %}</span>
+      </span>
+      {% if not r.done_today %}
+      <form method="post" action="/workout/reminders/{{ r.id }}/start" class="inline">
+        <button type="submit" class="compact due-start">Start</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 {% if active %}
 <section class="panel">
   <a class="button-link primary wo-big" href="/workout/session/{{ active.id }}">Continue workout · started {{ active.started_at[11:16] }}</a>
@@ -48,7 +69,7 @@
     <span class="stat-unit">{% if settings.body_weight %}kcal{% else %}<a href="/workout/settings">set body weight</a>{% endif %}</span></div>
 </div>
 {% endif %}
-<p class="wo-links"><a href="/workout/routines">Routines</a> · <a href="/workout/settings">Settings</a></p>
+<p class="wo-links"><a href="/workout/routines">Routines</a> · <a href="/workout/reminders">Reminders</a> · <a href="/workout/settings">Settings</a></p>
 
 {% if prs %}
 <section class="panel">

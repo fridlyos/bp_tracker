@@ -589,3 +589,24 @@ a.stat:hover { background: var(--surface-subtle); }
 @media (max-width: 640px) {
   .rt-row-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* --- workout reminders */
+.day-choice { gap: .4rem; }
+.day-chip { display: inline-flex; flex-direction: row; }
+.day-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.day-chip span { display: inline-grid; place-items: center; min-width: 3rem; min-height: 2.75rem; padding: 0 .4rem;
+  border: 1.5px solid var(--input-border); border-radius: 10px; font-weight: 650; background: var(--surface);
+  color: var(--text); cursor: pointer; }
+.day-chip input:checked + span { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.day-chip input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+.wk-dots { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; margin-top: .25rem; font-size: .8rem; }
+.wk-dots .muted { white-space: nowrap; }
+.wk-dots i { width: .7rem; height: .7rem; border-radius: 50%; border: 1.5px solid var(--border); }
+.wk-dots i.plan { border-color: var(--muted-soft); }
+.wk-dots i.done { background: var(--success); border-color: var(--success); }
+.wk-dots .muted { margin-left: .3rem; }
+.due-list li { grid-template-columns: minmax(0, 1fr) auto; }
+.due-list form.inline { margin: 0; }
+.due-start { min-height: 2.75rem; min-width: 4.5rem; font-weight: 700; }
+.due-done .entry-meta { color: var(--success); }
+.due-hl { background: color-mix(in srgb, var(--primary) 10%, transparent); border-radius: 8px; }

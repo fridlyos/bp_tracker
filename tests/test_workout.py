@@ -404,3 +404,85 @@ def test_backup_includes_phase3():
     assert got["exercises"][0]["sets"][0]["rpe"] == 9
     assert b.get("/api/workout/settings").json()["intensity"] == "light"
     assert "Added 0 items" in up().text
+
+
+# --- reminders
+
+def test_reminders_schedule_skip_and_goal(monkeypatch):
+    from datetime import datetime, timezone
+    from app.modules.workout import service
+    from app import push
+    c = _user("America/New_York")
+    ws = _exercise(c, "Wall sit", track_reps=False, track_weight=False, default_rest_sec=60)
+    r = c.post("/workout/reminders", data={"target": f"e:{ws['id']}", "days": ["0", "1", "2", "3", "4"],
+                                           "at_time": "19:00", "weekly_goal": "2"}, follow_redirects=False)
+    assert r.status_code == 303, r.text
+    with db.connect() as conn:
+        uid = conn.execute("SELECT id FROM users WHERE username = ?", (c.username,)).fetchone()[0]
+        conn.execute("UPDATE workout_reminders SET active = 0 WHERE user_id != ?", (uid,))  # isolate
+        conn.commit()
+    sent = []
+    monkeypatch.setattr(push, "send_to_user", lambda conn, u, title, body, url: sent.append((u, title, body, url)) or 1)
+
+    def run(utc):  # one scheduler tick
+        with db.connect() as conn:
+            service.send_reminders(conn, utc)
+
+    # Mon 2026-11-16 19:00 New York = 00:00 UTC Tuesday
+    run(datetime(2026, 11, 16, 23, 59, tzinfo=timezone.utc))        # 18:59: not yet
+    assert sent == []
+    run(datetime(2026, 11, 17, 0, 5, tzinfo=timezone.utc))          # 19:05: fires
+    run(datetime(2026, 11, 17, 0, 6, tzinfo=timezone.utc))          # once a day
+    assert len(sent) == 1 and sent[0][1] == "Time for Wall sit" and "0 of 2 days" in sent[0][2]
+    rid = int(sent[0][3].split("remind=")[1])
+
+    # Tuesday: done before 19:00 -> skipped
+    sid = c.post(f"/workout/reminders/{rid}/start", follow_redirects=False).headers["location"].rsplit("/", 1)[1]
+    se = c.get(f"/api/workout/sessions/{sid}").json()["exercises"][0]["id"]
+    c.put("/api/workout/sets", json=[_set(se, "2026-11-17T12:00:00", "2026-11-17T12:01:30", reps=None, weight=None)])
+    run(datetime(2026, 11, 18, 0, 1, tzinfo=timezone.utc))          # Tue 19:01
+    assert len(sent) == 1
+    # Wednesday: not done, 1/2 -> fires
+    run(datetime(2026, 11, 19, 0, 1, tzinfo=timezone.utc))
+    assert len(sent) == 2 and "1 of 2" in sent[1][2]
+    # Thursday: logged Wed late -> goal met (2/2) -> no more this week
+    c.put("/api/workout/sets", json=[_set(se, "2026-11-18T21:00:00", "2026-11-18T21:01:00", reps=None, weight=None)])
+    run(datetime(2026, 11, 20, 0, 1, tzinfo=timezone.utc))
+    run(datetime(2026, 11, 21, 0, 1, tzinfo=timezone.utc))          # Fri
+    assert len(sent) == 2
+    # Saturday isn't a reminder day; next Monday starts a new week
+    run(datetime(2026, 11, 22, 0, 1, tzinfo=timezone.utc))
+    run(datetime(2026, 11, 24, 0, 1, tzinfo=timezone.utc))          # Mon 23rd 19:01
+    assert len(sent) == 3 and "0 of 2" in sent[2][2]
+
+    page = c.get("/workout/reminders").text
+    assert "Wall sit" in page and "Weekdays" in page and "goal 2 days/week" in page and "data-push-enable" in page
+    # paused reminders don't fire
+    c.post(f"/workout/reminders/{rid}/active", data={"active": 0})
+    run(datetime(2026, 11, 25, 0, 1, tzinfo=timezone.utc))
+    assert len(sent) == 3
+
+
+def test_reminder_validation_home_and_backup():
+    c = _user()
+    ws = _exercise(c, "Wall sit", track_reps=False, track_weight=False)
+    for data, msg in [({"target": "", "days": ["0"], "at_time": "07:00"}, "Pick an exercise or a routine"),
+                      ({"target": f"e:{ws['id']}", "at_time": "07:00"}, "Pick at least one day"),
+                      ({"target": f"e:{ws['id']}", "days": ["0"], "at_time": "7pm"}, "Pick a time"),
+                      ({"target": f"e:{ws['id']}", "days": ["0", "1"], "at_time": "07:00", "weekly_goal": "3"},
+                       "more days than the 2"),
+                      ({"target": "e:999999", "days": ["0"], "at_time": "07:00"}, "Unknown exercise")]:
+        r = c.post("/workout/reminders", data=data)
+        assert r.status_code == 422 and msg in r.text, (data, r.text[-500:])
+    c.post("/workout/reminders", data={"target": f"e:{ws['id']}", "days": [str(d) for d in range(7)],
+                                       "at_time": "07:00", "weekly_goal": "5"})
+    home = c.get("/workout").text
+    assert "Today" in home and "Due at 07:00" in home and "0/5 this week" in home
+    data = c.get("/backup/download").json()
+    assert data["workout_reminders"][0] | {} and data["workout_reminders"][0]["exercise"] == "Wall sit"
+    b = _user()
+    up = lambda: b.post("/backup/restore", files={"file": ("b.json", io.BytesIO(json.dumps(data).encode()),  # noqa
+                                                           "application/json")})
+    up()
+    assert "Added 0 items" in up().text
+    assert "Every day" in b.get("/workout/reminders").text

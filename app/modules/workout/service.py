@@ -658,3 +658,151 @@ def routine_from_session(conn, user_id: int, session_id: int, name: str) -> int 
             superset_with_previous=e["group_id"] is not None and e["group_id"] == prev_gid))
         prev_gid = e["group_id"]
     return save_routine(conn, user_id, RoutineIn(name=name, items=items))
+
+
+# --- reminders
+#
+# Fire on the reminder's weekdays at at_time in its zone (up to 30 min late
+# after a restart), at most once a local day. Skipped (and marked for today)
+# when the target was already done today, or the weekly goal is already met.
+# "Done" = a set of that exercise logged that local day, or a workout started
+# from that routine with at least one set.
+
+REMINDER_WINDOW = timedelta(minutes=30)
+
+
+def _local(now_utc: datetime, tz: str) -> datetime:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    try:
+        zone = ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    aware = now_utc if now_utc.tzinfo else now_utc.replace(tzinfo=ZoneInfo("UTC"))
+    return aware.astimezone(zone).replace(tzinfo=None)
+
+
+def _reminder(conn, r) -> dict:
+    if r["exercise_id"]:
+        name = conn.execute("SELECT name FROM workout_exercises WHERE id = ?", (r["exercise_id"],)).fetchone()
+    else:
+        name = conn.execute("SELECT name FROM workout_routines WHERE id = ?", (r["routine_id"],)).fetchone()
+    return {"id": r["id"], "exercise_id": r["exercise_id"], "routine_id": r["routine_id"],
+            "target": "e:%d" % r["exercise_id"] if r["exercise_id"] else "r:%d" % r["routine_id"],
+            "name": name[0] if name else "?", "kind": "exercise" if r["exercise_id"] else "routine",
+            "days": [int(d) for d in r["days"]], "at_time": r["at_time"], "tz": r["tz"],
+            "weekly_goal": r["weekly_goal"], "active": bool(r["active"]), "user_id": r["user_id"]}
+
+
+def list_reminders(conn, user_id: int) -> list[dict]:
+    return [_reminder(conn, r) for r in conn.execute(
+        "SELECT * FROM workout_reminders WHERE user_id = ? ORDER BY active DESC, at_time", (user_id,))]
+
+
+def get_reminder(conn, user_id: int, reminder_id: int) -> dict | None:
+    r = conn.execute("SELECT * FROM workout_reminders WHERE id = ? AND user_id = ?",
+                     (reminder_id, user_id)).fetchone()
+    return _reminder(conn, r) if r else None
+
+
+def save_reminder(conn, user_id: int, m, tz: str, reminder_id: int | None = None) -> int | None:
+    """Create or update. Raises ValueError if the target isn't the user's."""
+    if m.exercise_id is not None and get_exercise(conn, user_id, m.exercise_id) is None:
+        raise ValueError("unknown exercise")
+    if m.routine_id is not None and not conn.execute(
+            "SELECT 1 FROM workout_routines WHERE id = ? AND user_id = ?", (m.routine_id, user_id)).fetchone():
+        raise ValueError("unknown routine")
+    vals = (m.exercise_id, m.routine_id, "".join(map(str, m.days)), m.at_time, tz, m.weekly_goal)
+    if reminder_id is None:
+        reminder_id = conn.execute(
+            "INSERT INTO workout_reminders (exercise_id, routine_id, days, at_time, tz, weekly_goal, user_id)"
+            " VALUES (?,?,?,?,?,?,?)", (*vals, user_id)).lastrowid
+    elif conn.execute("UPDATE workout_reminders SET exercise_id=?, routine_id=?, days=?, at_time=?, tz=?,"
+                      " weekly_goal=?, last_sent=NULL WHERE id=? AND user_id=?",
+                      (*vals, reminder_id, user_id)).rowcount == 0:
+        return None
+    conn.commit()
+    return reminder_id
+
+
+def set_reminder_active(conn, user_id: int, reminder_id: int, active: bool) -> None:
+    conn.execute("UPDATE workout_reminders SET active = ? WHERE id = ? AND user_id = ?",
+                 (int(active), reminder_id, user_id))
+    conn.commit()
+
+
+def delete_reminder(conn, user_id: int, reminder_id: int) -> None:
+    conn.execute("DELETE FROM workout_reminders WHERE id = ? AND user_id = ?", (reminder_id, user_id))
+    conn.commit()
+
+
+def done_days(conn, rem: dict, start: str, end: str) -> set[str]:
+    """Local dates in [start, end] (YYYY-MM-DD) on which the reminder's target was done."""
+    if rem["exercise_id"]:
+        rows = conn.execute(
+            "SELECT DISTINCT substr(x.started_at, 1, 10) FROM workout_sets x"
+            " JOIN workout_session_exercises se ON se.id = x.session_exercise_id"
+            " WHERE x.user_id = ? AND se.exercise_id = ? AND substr(x.started_at, 1, 10) BETWEEN ? AND ?",
+            (rem["user_id"], rem["exercise_id"], start, end))
+    else:
+        rows = conn.execute(
+            "SELECT DISTINCT substr(s.started_at, 1, 10) FROM workout_sessions s"
+            " WHERE s.user_id = ? AND s.routine_id = ? AND substr(s.started_at, 1, 10) BETWEEN ? AND ?"
+            " AND EXISTS (SELECT 1 FROM workout_sets x JOIN workout_session_exercises se"
+            "   ON se.id = x.session_exercise_id WHERE se.session_id = s.id)",
+            (rem["user_id"], rem["routine_id"], start, end))
+    return {r[0] for r in rows}
+
+
+def reminder_status(conn, rem: dict, today) -> dict:
+    """This week (Mon-Sun): days done, goal, done today, scheduled today."""
+    monday = today - timedelta(days=today.weekday())
+    done = done_days(conn, rem, monday.isoformat(), (monday + timedelta(days=6)).isoformat())
+    goal = rem["weekly_goal"] or len(rem["days"])
+    return {**rem, "done_week": len(done), "goal": goal, "done_today": today.isoformat() in done,
+            "today": today.weekday() in rem["days"], "goal_met": len(done) >= goal,
+            "week_days": [(monday + timedelta(days=i)).isoformat() in done for i in range(7)]}
+
+
+def due_reminders(conn, now_utc: datetime) -> list[dict]:
+    due = []
+    for r in conn.execute("SELECT * FROM workout_reminders WHERE active = 1").fetchall():
+        now = _local(now_utc, r["tz"])
+        if str(now.weekday()) not in r["days"] or r["last_sent"] == now.date().isoformat():
+            continue
+        at = datetime.combine(now.date(), datetime.strptime(r["at_time"], "%H:%M").time())
+        if at <= now < at + REMINDER_WINDOW:
+            due.append({**_reminder(conn, r), "local_now": now})
+    return due
+
+
+def send_reminders(conn, now_utc: datetime) -> None:
+    """Scheduler job (once a minute, idempotent)."""
+    import logging
+    from ... import push  # late: keeps this module importable without push deps
+    log = logging.getLogger("bp_tracker.workout")
+    for r in due_reminders(conn, now_utc):
+        st = reminder_status(conn, r, r["local_now"].date())
+        if st["done_today"] or st["goal_met"]:
+            log.info("workout reminder %s skipped (done today or goal met)", r["id"])
+        else:
+            body = (f"{st['done_week']} of {st['goal']} days done this week. Tap to start."
+                    if st["goal"] > 1 else "Tap to start.")
+            n = push.send_to_user(conn, r["user_id"], f"Time for {r['name']}", body,
+                                  f"/workout?remind={r['id']}")
+            log.info("workout reminder %s for user %s sent to %d device(s)", r["id"], r["user_id"], n)
+        conn.execute("UPDATE workout_reminders SET last_sent = ? WHERE id = ?",
+                     (r["local_now"].date().isoformat(), r["id"]))
+        conn.commit()
+
+
+def start_reminder(conn, user_id: int, reminder_id: int, now: datetime) -> int | None:
+    """Start (or continue) a workout for a reminder: the routine, or a
+    workout with the exercise added."""
+    rem = get_reminder(conn, user_id, reminder_id)
+    if rem is None:
+        return None
+    if rem["routine_id"]:
+        return start_routine(conn, user_id, rem["routine_id"], now)
+    sid = start_session(conn, user_id, now)
+    add_session_exercise(conn, user_id, sid, rem["exercise_id"])
+    return sid

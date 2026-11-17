@@ -169,3 +169,47 @@ class CaloriesIn(BaseModel):
 
 class GroupIn(BaseModel):
     superset_with_previous: bool
+
+
+# --- reminders
+
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+class ReminderIn(BaseModel):
+    """Remind on these weekdays (Mon=0) at a local time to do an exercise or a
+    routine. weekly_goal = stop reminding once it's been done that many days
+    this week (None = every chosen day)."""
+    exercise_id: int | None = None
+    routine_id: int | None = None
+    days: list[int]
+    at_time: str
+    weekly_goal: int | None = Field(None, ge=1, le=7)
+
+    @field_validator("days", mode="before")
+    @classmethod
+    def _days(cls, v):
+        try:
+            out = sorted({int(d) for d in (v or [])})
+        except (TypeError, ValueError):
+            raise ValueError("pick days of the week")
+        if not out or any(d < 0 or d > 6 for d in out):
+            raise ValueError("pick at least one day")
+        return out
+
+    @field_validator("at_time", mode="before")
+    @classmethod
+    def _time(cls, v):
+        v = (v or "").strip()[:5]
+        if not _HHMM.match(v):
+            raise ValueError("pick a time")
+        return v
+
+    @model_validator(mode="after")
+    def _check(self):
+        if (self.exercise_id is None) == (self.routine_id is None):
+            raise ValueError("pick an exercise or a routine")
+        if self.weekly_goal is not None and self.weekly_goal > len(self.days):
+            raise ValueError(f"the goal is more days than the {len(self.days)} you picked")
+        return self

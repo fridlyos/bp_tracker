@@ -12,7 +12,7 @@ from ...deps import current_user
 from ...schemas import User
 from ...ui import redirect, render
 from . import service
-from .schemas import MAX_ROUTINE_ITEMS, CaloriesIn, ExerciseIn, RoutineIn, SettingsIn
+from .schemas import DAY_NAMES, MAX_ROUTINE_ITEMS, CaloriesIn, ExerciseIn, ReminderIn, RoutineIn, SettingsIn
 
 router = APIRouter(prefix="/workout")
 
@@ -38,7 +38,11 @@ def home(request: Request, conn=Depends(db.get_db), user: User | None = Depends(
         "recent": [s for s in service.recent_sessions(conn, user.id, 6) if not s["in_progress"]][:5],
         "has_exercises": bool(service.list_exercises(conn, user.id, active_only=True)),
         "routines": service.list_routines(conn, user.id),
-        "settings": service.get_settings(conn, user.id)})
+        "settings": service.get_settings(conn, user.id),
+        "due": [r for r in (service.reminder_status(conn, x, now.date())
+                            for x in service.list_reminders(conn, user.id) if x["active"])
+                if r["today"] or r["done_today"]],
+        "remind": request.query_params.get("remind", "")})
 
 
 @router.post("/start")
@@ -369,3 +373,110 @@ def settings_save(request: Request, body_weight: str = Form(""), unit: str = For
         resp.status_code = 422
         return resp
     return redirect("/workout")
+
+
+# --- reminders
+
+def _target(v: str) -> dict:
+    kind, _, ident = (v or "").partition(":")
+    ident = _num(ident)
+    return {"exercise_id": ident if kind == "e" else None, "routine_id": ident if kind == "r" else None}
+
+
+def _reminder_form(conn, user, request, rem=None, form=None, error=None, status=200):
+    resp = render(request, "workout/reminder_form.html", user, {
+        "edit": rem, "f": form or rem or {"target": "", "days": [0, 1, 2, 3, 4], "at_time": "18:00",
+                                          "weekly_goal": None},
+        "exercises": service.list_exercises(conn, user.id, active_only=True),
+        "routines": service.list_routines(conn, user.id), "day_names": DAY_NAMES, "error": error})
+    resp.status_code = status
+    return resp
+
+
+@router.get("/reminders")
+def reminders(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    from ... import push
+    today = clock.local_today(request)
+    return render(request, "workout/reminders.html", user, {
+        "reminders": [service.reminder_status(conn, r, today) for r in service.list_reminders(conn, user.id)],
+        "day_names": DAY_NAMES, "devices": push.device_count(conn, user.id)})
+
+
+@router.get("/reminders/new")
+def reminder_new(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return _reminder_form(conn, user, request)
+
+
+@router.get("/reminders/{reminder_id}")
+def reminder_edit(reminder_id: int, request: Request, conn=Depends(db.get_db),
+                  user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    rem = service.get_reminder(conn, user.id, reminder_id)
+    if rem is None:
+        return redirect("/workout/reminders")
+    return _reminder_form(conn, user, request, rem)
+
+
+def _reminder_save(request, conn, user, reminder_id, target, days, at_time, weekly_goal):
+    edit = service.get_reminder(conn, user.id, reminder_id) if reminder_id else None
+    if reminder_id and edit is None:
+        return redirect("/workout/reminders")
+    form = {"target": target, "days": [int(d) for d in days if d.isdigit()], "at_time": at_time,
+            "weekly_goal": _num(weekly_goal)}
+    try:
+        m = ReminderIn(**_target(target), days=days, at_time=at_time, weekly_goal=_num(weekly_goal))
+        service.save_reminder(conn, user.id, m, clock.user_tz(request).key, reminder_id)
+    except ValidationError as err:
+        return _reminder_form(conn, user, request, edit, form, _error_text(err), 422)
+    except ValueError as err:
+        return _reminder_form(conn, user, request, edit, form, str(err).capitalize(), 422)
+    return redirect("/workout/reminders")
+
+
+@router.post("/reminders")
+def reminder_create(request: Request, target: str = Form(""), days: list[str] = Form([]),
+                    at_time: str = Form(""), weekly_goal: str = Form(""), conn=Depends(db.get_db),
+                    user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return _reminder_save(request, conn, user, None, target, days, at_time, weekly_goal)
+
+
+@router.post("/reminders/{reminder_id}")
+def reminder_update(reminder_id: int, request: Request, target: str = Form(""), days: list[str] = Form([]),
+                    at_time: str = Form(""), weekly_goal: str = Form(""), conn=Depends(db.get_db),
+                    user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    return _reminder_save(request, conn, user, reminder_id, target, days, at_time, weekly_goal)
+
+
+@router.post("/reminders/{reminder_id}/active")
+def reminder_active(reminder_id: int, active: int = Form(...), conn=Depends(db.get_db),
+                    user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    service.set_reminder_active(conn, user.id, reminder_id, bool(active))
+    return redirect("/workout/reminders")
+
+
+@router.post("/reminders/{reminder_id}/delete")
+def reminder_delete(reminder_id: int, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    service.delete_reminder(conn, user.id, reminder_id)
+    return redirect("/workout/reminders")
+
+
+@router.post("/reminders/{reminder_id}/start")
+def reminder_start(reminder_id: int, request: Request, conn=Depends(db.get_db),
+                   user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    sid = service.start_reminder(conn, user.id, reminder_id, clock.local_now(request))
+    return redirect(f"/workout/session/{sid}" if sid else "/workout")

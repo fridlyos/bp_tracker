@@ -179,11 +179,22 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   `workout_sessions.calories` overrides it (blank = estimate); `kcal` in
   session detail, history cards, home week tile and weekly table. Not synced
   to the calorie tracker (lose_weight).
+- Reminders (`0007_workout_reminders`, `/workout/reminders`): for an exercise
+  or a routine (exactly one), on chosen weekdays (`days` = digits, Mon=0) at
+  `HH:MM` in the zone the browser had (tz_tables), optional `weekly_goal`
+  (days/week, ≤ days picked). Job `service.send_reminders`: fires in a 30-min
+  window, at most once per local day (`last_sent`), skipped when already done
+  today or the week's goal (Mon–Sun) is met. "Done" = a set of that exercise
+  that local day, or a workout started from that routine with a set. Push
+  opens `/workout?remind=<id>`; home "Today" lists today's reminders with
+  Start (`POST /workout/reminders/{id}/start` = routine, or a workout with the
+  exercise added). Reminders page has the push-device block (`push.js`).
 - Backup: `workout_exercises` + nested `workout_sessions` (exercises by name,
   sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`),
   `workout_routines` (by name, items by exercise name), `workout_settings`
   (restored only into an account without settings), session `calories` /
-  `routine` name / per-exercise targets.
+  `routine` name / per-exercise targets, `workout_reminders` (by target name,
+  matched on target + time + days).
 
 ## Adding a module
 

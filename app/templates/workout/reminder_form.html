@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ "Edit reminder" if edit else "New reminder" }}</h1>
+    <p class="page-subtitle"><a href="/workout/reminders">← Reminders</a></p>
+  </div>
+</div>
+{% if not exercises and not routines %}
+<section class="panel"><p>Add the exercise first: <a href="/workout/exercises/new">+ Exercise</a> (e.g. Wall sit, with reps and weight off for a timed hold).</p></section>
+{% else %}
+<section class="panel">
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ '/workout/reminders/' ~ edit.id if edit else '/workout/reminders' }}">
+    <label>Remind me to do
+      <select name="target" required>
+        <option value="">—</option>
+        {% if exercises %}<optgroup label="Exercises">
+          {% for e in exercises %}<option value="e:{{ e.id }}"{% if f.target == "e:" ~ e.id %} selected{% endif %}>{{ e.name }}</option>{% endfor %}
+        </optgroup>{% endif %}
+        {% if routines %}<optgroup label="Routines">
+          {% for r in routines %}<option value="r:{{ r.id }}"{% if f.target == "r:" ~ r.id %} selected{% endif %}>{{ r.name }}</option>{% endfor %}
+        </optgroup>{% endif %}
+      </select>
+    </label>
+    <fieldset class="kind-choice day-choice">
+      <legend>On these days</legend>
+      {% for d in range(7) %}
+      <label class="day-chip"><input type="checkbox" name="days" value="{{ d }}"{% if d in f.days %} checked{% endif %}><span>{{ day_names[d] }}</span></label>
+      {% endfor %}
+    </fieldset>
+    <div class="wo-grid2">
+      <label>At
+        <input type="time" name="at_time" required value="{{ f.at_time }}">
+      </label>
+      <label>Weekly goal <span class="muted">(days, optional)</span>
+        <input type="number" name="weekly_goal" inputmode="numeric" min="1" max="7" value="{{ f.weekly_goal if f.weekly_goal is not none else '' }}" placeholder="every day picked">
+      </label>
+    </div>
+    <p class="muted wo-note">With a goal, e.g. 4 days on Mon–Sat: you're reminded on each of those days you haven't done it yet, until you've done it 4 days that week. Times use this device's time zone.</p>
+    <div class="dialog-actions">
+      <a class="button-link secondary" href="/workout/reminders">Cancel</a>
+      <button type="submit">{{ "Save changes" if edit else "Add reminder" }}</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

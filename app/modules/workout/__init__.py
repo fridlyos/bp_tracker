@@ -1,7 +1,7 @@
 """Strength training: exercise types you define, live workouts with a set
 timer and a rest timer, history. Pages under /workout, JSON API under /api/workout."""
 from .. import Module, NavItem
-from . import api, web
+from . import api, service, web
 
 _DUMBBELL = ('<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>')
 
@@ -19,4 +19,6 @@ MODULE = Module(
                 '<circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'),
     ),
     routers=(web.router, api.router),
+    jobs=(service.send_reminders,),
+    tz_tables=("workout_reminders",),
 )
