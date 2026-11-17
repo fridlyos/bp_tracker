@@ -183,3 +183,88 @@ def test_backup_roundtrip_into_other_account():
     assert "Added 0 items" in upload(b).text
     # the original account is untouched
     assert a.get("/api/workout/sessions").json()[0]["summary"]["sets"] == 2
+
+
+# --- phase 2: progress, PRs, weekly
+
+def _log_session(c, ex_id, day, sets):
+    """One finished session on `day` with sets [(reps, weight[, unit])], 2 min apart."""
+    s = c.post("/api/workout/sessions").json()
+    with db.connect() as conn:  # backdate it
+        conn.execute("UPDATE workout_sessions SET started_at = ? WHERE id = ?", (f"{day}T07:00:00", s["id"]))
+        conn.commit()
+    se = c.post(f"/api/workout/sessions/{s['id']}/exercises", json={"exercise_id": ex_id}).json()["session_exercise_id"]
+    batch = []
+    for i, x in enumerate(sets):
+        reps, weight, unit = (x + ("lb",))[:3]
+        m = 2 * i
+        batch.append(_set(se, f"{day}T07:{m:02d}:00", f"{day}T07:{m:02d}:40", reps=reps, weight=weight, unit=unit))
+    assert c.put("/api/workout/sets", json=batch).json()["rejected"] == []
+    c.post(f"/api/workout/sessions/{s['id']}/finish")
+    return s["id"]
+
+
+def test_prs_progress_and_records():
+    c = _user()
+    ex = _exercise(c, "Bench")
+    s1 = _log_session(c, ex["id"], "2026-10-01", [(8, 135), (8, 135), (6, 145)])
+    s2 = _log_session(c, ex["id"], "2026-10-08", [(8, 140), (5, 150), (3, 155)])
+    d1 = c.get(f"/api/workout/sessions/{s1}").json()["exercises"][0]
+    assert all(st["prs"] == [] for st in d1["sets"])  # first session: nothing to beat
+    d2 = c.get(f"/api/workout/sessions/{s2}").json()["exercises"][0]
+    # e1RM: 145x6 = 174 is the bar; 140x8 = 177.3 beats it; 150x5 = 175 doesn't; 155x3 = 170.5 doesn't
+    assert [st["prs"] for st in d2["sets"]] == [["e1rm"], ["weight"], ["weight"]]
+    assert d2["best_before"] == {"weight": 145.0, "e1rm": 174.0}
+    assert d2["pr_kinds"] == ["weight", "e1rm"]
+
+    p = c.get(f"/api/workout/exercises/{ex['id']}/progress").json()
+    assert [x["date"] for x in p["points"]] == ["2026-10-01", "2026-10-08"]
+    assert p["points"][1]["top_weight"] == 155 and p["points"][1]["top_reps"] == 3
+    assert p["points"][1]["e1rm"] == 177.3 and p["points"][0]["volume"] == 8 * 135 * 2 + 6 * 145
+    assert p["points"][0]["avg_rest"] == 80
+    assert p["records"]["weight"]["value"] == 155 and p["records"]["weight"]["reps"] == 3
+    assert p["records"]["e1rm"]["date"] == "2026-10-08"
+    assert p["records"]["volume"]["value"] == 8 * 135 * 2 + 6 * 145  # s1 had more volume
+    since = c.get(f"/api/workout/exercises/{ex['id']}/progress?since=2026-10-05").json()
+    assert len(since["points"]) == 1 and since["records"]["volume"]["date"] == "2026-10-01"
+    assert c.get(f"/api/workout/exercises/{ex['id']}/progress?since=nope").status_code == 422
+
+    page = c.get(f"/workout/progress/{ex['id']}").text
+    assert "Personal records" in page and "155 lb × 3" in page and "strength-chart" in page
+    assert 'href="/workout/progress" class="active"' in page
+    assert c.get("/workout/progress", follow_redirects=False).headers["location"] == f"/workout/progress/{ex['id']}"
+
+
+def test_pr_kinds_by_tracking_and_unit_conversion():
+    c = _user()
+    pushup = _exercise(c, "Push-up", track_weight=False)
+    _log_session(c, pushup["id"], "2026-10-01", [(20, None)])
+    s = _log_session(c, pushup["id"], "2026-10-03", [(18, None), (25, None)])
+    sets = c.get(f"/api/workout/sessions/{s}").json()["exercises"][0]["sets"]
+    assert [x["prs"] for x in sets] == [[], ["reps"]]
+    plank = _exercise(c, "Plank", track_reps=False, track_weight=False)
+    p = c.get(f"/api/workout/exercises/{plank['id']}/progress").json()
+    assert p["kinds"] == ["time"] and p["points"] == []
+    # a kg set on an lb exercise is compared in lb
+    dl = _exercise(c, "Deadlift")
+    _log_session(c, dl["id"], "2026-10-01", [(5, 225)])
+    s = _log_session(c, dl["id"], "2026-10-05", [(5, 110, "kg")])  # 242.5 lb
+    assert c.get(f"/api/workout/sessions/{s}").json()["exercises"][0]["sets"][0]["prs"] == ["weight", "e1rm"]
+
+
+def test_weekly_summary_and_home():
+    c = _user()
+    ex = _exercise(c, "Row")
+    _log_session(c, ex["id"], "2026-11-16", [(10, 95), (10, 95)])  # a Monday
+    _log_session(c, ex["id"], "2026-11-17", [(10, 100)])
+    from datetime import date
+    from app.modules.workout import service
+    with db.connect() as conn:
+        uid = conn.execute("SELECT id FROM users WHERE username = ?", (c.username,)).fetchone()[0]
+        weeks = service.weekly(conn, uid, date(2026, 11, 19), 3)
+        prs = service.recent_prs(conn, uid, "2026-11-01")
+    assert weeks[0] == {"week": "2026-11-16", "workouts": 2, "sets": 3, "time_sec": 160 + 40}
+    assert weeks[1]["workouts"] == 0 and len(weeks) == 3
+    assert [(p["exercise"], p["kind"], p["value"]) for p in prs] == [("Row", "weight", 100.0), ("Row", "e1rm", 133.3)]
+    assert c.get("/api/workout/summary").status_code == 200
+    assert "By week" in c.get("/workout/history").text

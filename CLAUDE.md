@@ -119,7 +119,7 @@ medications and supplements, kept apart by `meds.kind` (`medication` |
 Workout module (`app/modules/workout/`, templates in `app/templates/workout/`,
 live page script `app/static/workout.js`) — strength training. Plan:
 the "workout-module-plan" doc in the HEALTH APP Claude project.
-- Tabs: Workout `/workout` (Start / Continue workout, recent), History
+- Tabs: Workout `/workout` (Start / Continue workout, recent), Progress, History
   `/workout/history`, Exercises `/workout/exercises` (user-defined types:
   name, category, equipment, track reps / track weight switches, unit lb|kg,
   default rest seconds; Archive = hidden, history kept; Delete = removes sets).
@@ -146,6 +146,20 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   end), `/sessions/{id}/exercises`, `/session-exercises/{id}`, `PUT /sets`,
   `PATCH|DELETE /sets/{uid}`. Validation: `schemas.SetIn` (end ≥ start, ≤ 1 h,
   tempo like 3-1-1-0, uid `[A-Za-z0-9-]{8,64}`).
+- Phase 2 (progress): Progress tab `/workout/progress/{exercise_id}`
+  (`/workout/progress` opens the last-trained exercise): all-time record
+  tiles + Chart.js charts per session from `/api/workout/exercises/{id}/progress?since=`
+  (Strength = top set solid `--s-1` + est. 1RM dashed `--s-2`, one axis;
+  Volume bars; Most reps or Longest set for bodyweight / timed), table view.
+  Series tokens validated with the dataviz checker on #fff and #1b3149.
+  PRs (`service._scan`, mirrored in workout.js `recompute`): kinds by what
+  the exercise tracks — weight → heaviest + est. 1RM (Epley, 1–12 reps);
+  reps only → most reps; neither → longest set. A set is a PR when it beats
+  every earlier set and an earlier session exists; weights compared in the
+  exercise's unit (kg↔lb converted). Sets carry `prs`, session exercises
+  `best_before` + `pr_kinds` so the live page badges PRs before sync.
+  Home: this week's workouts/sets/time + PRs from the last 30 days;
+  History: by-week table (`service.weekly`, Mon–Sun). `/api/workout/summary`.
 - Backup: `workout_exercises` + nested `workout_sessions` (exercises by name,
   sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`).
 

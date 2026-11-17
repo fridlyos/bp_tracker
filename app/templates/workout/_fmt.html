@@ -19,7 +19,15 @@
     <span class="entry-meta">
       {% if s.exercises %}{% for e in s.exercises %}{{ e.name }}{{ ", " if not loop.last }}{% endfor %}{% else %}No exercises{% endif %}
     </span>
-    <span class="entry-meta">{{ s.summary.sets }} sets · {{ dur(s.duration_sec) }}{% if s.summary.volume %} · {{ num(s.summary.volume) }} volume{% endif %}</span>
+    <span class="entry-meta">{{ s.summary.sets }} set{{ "" if s.summary.sets == 1 else "s" }} · {{ dur(s.duration_sec) }}{% if s.summary.volume %} · {{ num(s.summary.volume) }} volume{% endif %}</span>
   </a>
 </li>
 {% endmacro %}
+{# a record / PR value in words: "145 lb × 6", "e1RM 168 lb", "20 reps", "1:30" #}
+{% macro pr_value(kind, value, unit, reps=None) -%}
+{%- if kind == "weight" %}{{ num(value) }} {{ unit }}{% if reps %} × {{ reps }}{% endif %}
+{%- elif kind == "e1rm" %}{{ num(value) }} {{ unit }}
+{%- elif kind == "volume" %}{{ num(value) }} {{ unit }}
+{%- elif kind == "reps" %}{{ value }} reps
+{%- else %}{{ dur(value) }}{% endif -%}
+{%- endmacro %}

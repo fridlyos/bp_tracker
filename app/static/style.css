@@ -529,3 +529,19 @@ button.wo-main.is-running { background: var(--danger); border-color: var(--dange
   .wo-dock { bottom: calc(4.6rem + env(safe-area-inset-bottom)); }
   .wo-grid2 { grid-template-columns: 1fr; }
 }
+
+/* --- workout phase 2: progress charts + PRs
+   series tokens validated with the dataviz checker: light #2a78d6/#eb6834 on #fff,
+   dark #3987e5/#d95926 on the #1b3149 chart panel (CVD ΔE ≥ 24, contrast ≥ 3:1) */
+.viz-root { --s-1: #2a78d6; --s-2: #eb6834; }
+:root[data-theme="dark"] .viz-root { --s-1: #3987e5; --s-2: #d95926; }
+.line-key-dash { background: repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 8px); }
+.ex-pick { flex: 1 1 12rem; min-height: 2.75rem; }
+.pr-tiles { grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); }
+a.stat { text-decoration: none; color: inherit; }
+a.stat:hover { background: var(--surface-subtle); }
+.pr-tiles .stat-value { font-size: 1.25rem; }
+.pr-badge { display: inline-block; padding: .05rem .4rem; border-radius: 5px; font-size: .72rem; font-weight: 800;
+  letter-spacing: .04em; background: var(--warn); color: var(--surface); vertical-align: .1em; }
+.wo-set .pr-badge { margin-left: .35rem; }
+.wo-clock-sub.is-pr { color: var(--warn); font-weight: 700; }

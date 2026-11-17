@@ -1,6 +1,8 @@
 """Workout JSON API under /api/workout (session cookie; 401 if absent).
 The live session page talks to this; sets are upserted by client uid so the
 offline queue can resend safely."""
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from ... import clock, db
@@ -124,3 +126,28 @@ def update_set(set_uid: str, u: SetUpdate, uid: int = Depends(api_user), conn=De
 def delete_set(set_uid: str, uid: int = Depends(api_user), conn=Depends(db.get_db)):
     service.delete_set(conn, uid, set_uid)
     return Response(status_code=204)
+
+
+# --- progress (phase 2)
+
+@router.get("/exercises/{exercise_id}/progress")
+def exercise_progress(exercise_id: int, since: str | None = None, uid: int = Depends(api_user),
+                      conn=Depends(db.get_db)):
+    """Per-session chart series (from `since` YYYY-MM-DD) + all-time records."""
+    if since is not None:
+        try:
+            date.fromisoformat(since)
+        except ValueError:
+            raise HTTPException(422, "since must be YYYY-MM-DD")
+    out = service.exercise_progress(conn, uid, exercise_id, since)
+    if out is None:
+        raise HTTPException(404, "exercise not found")
+    return out
+
+
+@router.get("/summary")
+def summary(request: Request, uid: int = Depends(api_user), conn=Depends(db.get_db)):
+    """Weekly totals (8 weeks) and PRs from the last 30 days."""
+    today = clock.local_today(request)
+    return {"weeks": service.weekly(conn, uid, today),
+            "recent_prs": service.recent_prs(conn, uid, (today - timedelta(days=30)).isoformat())}

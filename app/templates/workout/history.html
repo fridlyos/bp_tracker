@@ -1,10 +1,26 @@
 {% extends "base.html" %}
-{% from "workout/_fmt.html" import session_card %}
+{% from "workout/_fmt.html" import session_card, dur %}
 {% block content %}
 <div class="page-head">
   <div><h1>History</h1><p class="page-subtitle">Your last {{ sessions|length }} workouts</p></div>
 </div>
 {% if sessions %}
+<details class="panel collapse"{% if weeks[0].workouts %} open{% endif %}>
+  <summary><h2>By week</h2></summary>
+  <div class="table-wrap">
+    <table class="report-table">
+      <thead><tr><th>Week of</th><th>Workouts</th><th>Sets</th><th>Time</th></tr></thead>
+      <tbody>
+      {% for w in weeks %}
+        <tr{% if not w.workouts %} class="muted"{% endif %}>
+          <th scope="row">{{ w.week[5:] }}{% if loop.first %} <span class="muted">this week</span>{% endif %}</th>
+          <td>{{ w.workouts }}</td><td>{{ w.sets }}</td><td>{{ dur(w.time_sec) if w.time_sec else "–" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
 <section class="panel">
   <ul class="entry-list session-list">
     {% for s in sessions %}{{ session_card(s) }}{% endfor %}

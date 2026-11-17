@@ -52,13 +52,30 @@
   };
 
   // --- derived numbers (mirror service._set_dict / _summary)
+  const LB_PER_KG = 2.20462;
+  const PR_LABELS = { weight: "Heaviest", e1rm: "Best est. 1RM", reps: "Most reps", time: "Longest set" };
+  function metrics(ex, s) {
+    let w = s.weight;
+    if (w != null && s.unit && s.unit !== ex.unit) w = ex.unit === "lb" ? w * LB_PER_KG : w / LB_PER_KG;
+    if (w != null) w = Math.round(w * 10) / 10;
+    const r = s.reps;
+    const e = w && r && r >= 1 && r <= 12 ? Math.round((r === 1 ? w : w * (1 + r / 30)) * 10) / 10 : null;
+    return { weight: w, e1rm: e, reps: r, time: s.duration_sec };
+  }
   function recompute(ex) {
     ex.sets.sort((a, b) => parseLocal(a.started_at) - parseLocal(b.started_at));
     let prev = null;
+    // PRs: beat the best from earlier sessions and every earlier set today;
+    // nothing is a PR when there is no earlier session to beat
+    const best = Object.assign({}, ex.best_before || {});
+    const kinds = ex.pr_kinds || [];
     for (const s of ex.sets) {
       s.duration_sec = secsBetween(s.started_at, s.ended_at);
       s.rest_before_sec = prev ? Math.max(0, secsBetween(prev, s.started_at)) : null;
       prev = s.ended_at;
+      const m = metrics(ex, s);
+      s.prs = kinds.filter((k) => m[k] != null && best[k] != null && m[k] > best[k]);
+      kinds.forEach((k) => { if (m[k] != null && (best[k] == null || m[k] > best[k])) best[k] = m[k]; });
     }
   }
   const exById = (id) => S.exercises.find((e) => e.id === id);
@@ -160,8 +177,14 @@
           const b = el("button", "wo-set");
           b.type = "button";
           b.setAttribute("aria-label", `Edit set ${i + 1}`);
-          b.append(el("span", "wo-set-no", String(i + 1)),
-                   el("span", "wo-set-main", setLine(ex, s) || "timed"),
+          const main = el("span", "wo-set-main", setLine(ex, s) || "timed");
+          if (s.prs && s.prs.length) {
+            const badge = el("span", "pr-badge", "PR");
+            badge.title = s.prs.map((k) => PR_LABELS[k]).join(", ");
+            main.append(badge);
+            b.setAttribute("aria-label", `Edit set ${i + 1}, personal record: ${badge.title}`);
+          }
+          b.append(el("span", "wo-set-no", String(i + 1)), main,
                    el("span", "wo-set-tut", dur(s.duration_sec)),
                    el("span", "wo-set-rest muted", s.rest_before_sec == null ? "" : "rest " + dur(s.rest_before_sec)));
           b.addEventListener("click", () => openEdit(ex, s, i + 1));
@@ -277,6 +300,9 @@
       st.lastUid = p.uid;
       st.alerted = false;
       enqueue(p);
+      const done = ex.sets.find((x) => x.uid === p.uid);
+      st.prText = done && done.prs && done.prs.length
+        ? "New PR: " + done.prs.map((k) => PR_LABELS[k]).join(", ") : "";
     }
     save();
     render();
@@ -290,6 +316,7 @@
     if (!ex) return;
     const box = $("wo-clock"), label = $("wo-clock-label"), time = $("wo-clock-time"), sub = $("wo-clock-sub");
     box.classList.remove("is-set", "is-rest", "is-over");
+    sub.classList.remove("is-pr");
     if (st.phase === "set") {
       box.classList.add("is-set");
       label.textContent = "Set " + (ex.sets.length + 1);
@@ -307,6 +334,10 @@
       } else {
         sub.textContent = target ? clock(target - rest) + " left of " + clock(target) : "";
       }
+      // first 10 s of rest: celebrate a PR instead of the countdown
+      const pr = st.prText && rest < 10;
+      sub.classList.toggle("is-pr", !!pr);
+      if (pr) sub.textContent = "★ " + st.prText;
     } else {
       label.textContent = "Ready";
       time.textContent = "0:00";

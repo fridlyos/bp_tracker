@@ -2,6 +2,8 @@
 session page, History, and Exercises (the user's exercise types).
 POST-redirect-GET; anonymous -> /login. The live session page is driven by
 JS against /api/workout (timers, offline queue)."""
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, Form, Request
 from pydantic import ValidationError
 
@@ -27,8 +29,11 @@ def _error_text(e: ValidationError) -> str:
 def home(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    active = service.active_session(conn, user.id, clock.local_now(request))
+    now = clock.local_now(request)
+    active = service.active_session(conn, user.id, now)
     return render(request, "workout/home.html", user, {
+        "week": service.weekly(conn, user.id, now.date(), 1)[0],
+        "prs": service.recent_prs(conn, user.id, (now.date() - timedelta(days=30)).isoformat(), 5),
         "active": service.session_detail(conn, user.id, active["id"]) if active else None,
         "recent": [s for s in service.recent_sessions(conn, user.id, 6) if not s["in_progress"]][:5],
         "has_exercises": bool(service.list_exercises(conn, user.id, active_only=True))})
@@ -75,7 +80,39 @@ def delete(session_id: int, conn=Depends(db.get_db), user: User | None = Depends
 def history(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    return render(request, "workout/history.html", user, {"sessions": service.recent_sessions(conn, user.id, 60)})
+    return render(request, "workout/history.html", user, {
+        "sessions": service.recent_sessions(conn, user.id, 60),
+        "weeks": service.weekly(conn, user.id, clock.local_today(request))})
+
+
+@router.get("/progress")
+def progress_start(conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+    """Progress opens on the exercise you trained most recently."""
+    if user is None:
+        return redirect("/login")
+    row = conn.execute(
+        "SELECT se.exercise_id FROM workout_sets x JOIN workout_session_exercises se ON se.id = x.session_exercise_id"
+        " WHERE x.user_id = ? ORDER BY x.started_at DESC LIMIT 1", (user.id,)).fetchone()
+    if row is None:
+        exs = service.list_exercises(conn, user.id, active_only=True)
+        if not exs:
+            return redirect("/workout/exercises")
+        return redirect(f"/workout/progress/{exs[0].id}")
+    return redirect(f"/workout/progress/{row[0]}")
+
+
+@router.get("/progress/{exercise_id}")
+def progress(exercise_id: int, request: Request, conn=Depends(db.get_db),
+             user: User | None = Depends(current_user)):
+    if user is None:
+        return redirect("/login")
+    data = service.exercise_progress(conn, user.id, exercise_id)
+    if data is None:
+        return redirect("/workout/progress")
+    return render(request, "workout/progress.html", user, {
+        "ex": data["exercise"], "records": data["records"], "kinds": data["kinds"],
+        "labels": service.PR_LABELS, "has_data": bool(data["points"]),
+        "exercises": service.list_exercises(conn, user.id)})
 
 
 # --- exercise types

@@ -12,6 +12,8 @@ MODULE = Module(
     icon=_DUMBBELL,
     nav=(
         NavItem("/workout", "Workout", _DUMBBELL),
+        NavItem("/workout/progress", "Progress", '<path d="M4 19h16"/><path d="M5 15l4.5-4.5 3.5 3L19 7"/>'
+                '<path d="M15 7h4v4"/>'),
         NavItem("/workout/history", "History", '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
         NavItem("/workout/exercises", "Exercises", '<path d="M8 6h12M8 12h12M8 18h12"/>'
                 '<circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'),

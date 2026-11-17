@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% from "workout/_fmt.html" import pr_value %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="viz-root">
+<div class="page-head">
+  <div>
+    <h1>Progress</h1>
+    <p class="page-subtitle" id="range-label">&nbsp;</p>
+  </div>
+</div>
+
+<div class="range-row">
+  <label class="visually-hidden" for="ex-pick">Exercise</label>
+  <select id="ex-pick" class="ex-pick">
+    {% for e in exercises %}
+    <option value="{{ e.id }}"{% if e.id == ex.id %} selected{% endif %}>{{ e.name }}{% if not e.active %} (archived){% endif %}</option>
+    {% endfor %}
+  </select>
+  <div class="range-tabs" role="group" aria-label="Time range">
+    <button type="button" data-range="90">3M</button>
+    <button type="button" data-range="180">6M</button>
+    <button type="button" data-range="365">1Y</button>
+    <button type="button" data-range="all">All</button>
+  </div>
+</div>
+
+{% if records %}
+<h2 class="sub-head">Personal records <span class="muted">all time</span></h2>
+<div class="stat-row pr-tiles">
+  {% for k in kinds + (["volume"] if "volume" in records else []) %}
+  {% set r = records.get(k) %}
+  {% if r %}
+  <a class="stat" href="/workout/session/{{ r.session_id }}">
+    <span class="stat-label">{{ labels.get(k, "Best session volume") }}</span>
+    <span class="stat-value">{{ pr_value(k, r.value, ex.unit, r.reps if k == "weight") }}</span>
+    <span class="stat-unit">{{ r.date }}</span>
+  </a>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<section class="panel" id="empty"{% if has_data %} hidden{% endif %}>
+  <p class="muted">No sets logged for {{ ex.name }}{% if has_data %} in this range{% endif %} yet. <a href="/workout">Start a workout</a>.</p>
+</section>
+
+<div id="charts" hidden>
+  {% if "weight" in kinds %}
+  <section class="panel chart-card">
+    <div class="chart-head">
+      <h2>Strength <span class="muted">{{ ex.unit }}, per session</span></h2>
+      {% if "e1rm" in kinds %}
+      <div class="chart-legend">
+        <span><i class="line-key" style="background: var(--s-1)"></i>Top set</span>
+        <span><i class="line-key line-key-dash" style="color: var(--s-2)"></i>Est. 1RM</span>
+      </div>
+      {% endif %}
+    </div>
+    <div class="chart-box chart-box-tall"><canvas id="strength-chart" role="img"
+      aria-label="Heaviest set{% if 'e1rm' in kinds %} and estimated one-rep max{% endif %} per session. Values are in the table below."></canvas></div>
+  </section>
+  {% endif %}
+  {% if "e1rm" in kinds %}
+  <section class="panel chart-card">
+    <div class="chart-head"><h2>Volume <span class="muted">reps × weight, {{ ex.unit }}</span></h2></div>
+    <div class="chart-box"><canvas id="volume-chart" role="img"
+      aria-label="Volume per session bar chart. Values are in the table below."></canvas></div>
+  </section>
+  {% endif %}
+  {% if "reps" in kinds %}
+  <section class="panel chart-card">
+    <div class="chart-head"><h2>Most reps in a set</h2></div>
+    <div class="chart-box chart-box-tall"><canvas id="reps-chart" role="img"
+      aria-label="Most reps in a set per session. Values are in the table below."></canvas></div>
+  </section>
+  {% endif %}
+  {% if "time" in kinds %}
+  <section class="panel chart-card">
+    <div class="chart-head"><h2>Longest set <span class="muted">min:sec</span></h2></div>
+    <div class="chart-box chart-box-tall"><canvas id="time-chart" role="img"
+      aria-label="Longest set per session. Values are in the table below."></canvas></div>
+  </section>
+  {% endif %}
+  <p class="muted chart-hint">Est. 1RM uses the Epley formula on sets of 1–12 reps.</p>
+
+  <details class="panel collapse">
+    <summary><h2>Table</h2></summary>
+    <div class="table-wrap">
+      <table class="report-table">
+        <thead><tr id="table-head"></tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </details>
+</div>
+</div>
+
+<script type="application/json" id="pg-data">{{ {"id": ex.id, "unit": ex.unit, "kinds": kinds}|tojson }}</script>
+<script>
+(function () {
+  const viz = document.querySelector(".viz-root");
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(viz).getPropertyValue(name).trim();
+  const CFG = JSON.parse($("pg-data").textContent);
+  const has = (k) => CFG.kinds.includes(k);
+  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+
+  $("ex-pick").addEventListener("change", (e) => { location.href = "/workout/progress/" + e.target.value; });
+
+  const RANGE_TEXT = { 90: "3 months", 180: "6 months", 365: "year" };
+  let range = "180";
+  try { range = localStorage.getItem("workout-progress-range") || "180"; } catch (e) {}
+  if (!(range in RANGE_TEXT) && range !== "all") range = "180";
+  let last = null;
+  const charts = {};
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const parseDay = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+  const fmtDay = (iso) => parseDay(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const num = (v) => (v == null ? "–" : String(Math.round(v * 10) / 10));
+  const mmss = (s) => (s == null ? "–" : Math.floor(s / 60) + ":" + pad(Math.round(s % 60)));
+
+  // --- plugins: crosshair + value at the end of each line (text ink, not series colour)
+  const crosshair = {
+    id: "crosshair",
+    afterDatasetsDraw(chart) {
+      const a = chart.tooltip && chart.tooltip.getActiveElements();
+      if (!a || !a.length || chart.config.type !== "line") return;
+      const x = a[0].element.x, { top, bottom } = chart.chartArea, ctx = chart.ctx;
+      ctx.save(); ctx.strokeStyle = css("--viz-axis"); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.restore();
+    },
+  };
+  const endLabels = (fmt) => ({
+    id: "endLabels",
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.fillStyle = css("--viz-text-2"); ctx.textBaseline = "middle";
+      chart.data.datasets.forEach((ds, i) => {
+        for (let j = ds.data.length - 1; j >= 0; j--) {
+          if (ds.data[j] == null) continue;
+          const pt = chart.getDatasetMeta(i).data[j];
+          ctx.fillText(fmt(ds.data[j]), pt.x + 8, pt.y);
+          break;
+        }
+      });
+      ctx.restore();
+    },
+  });
+
+  const tooltip = (points, fmt) => ({
+    backgroundColor: css("--viz-tooltip"), borderColor: css("--viz-axis"), borderWidth: 1,
+    titleColor: css("--viz-text-2"), bodyColor: css("--viz-text-1"),
+    titleFont: { weight: "500" }, bodyFont: { weight: "600" }, padding: 10, usePointStyle: true,
+    callbacks: {
+      title: (items) => {
+        const p = points[items[0].dataIndex];
+        return `${fmtDay(p.date)} · ${p.sets} set${p.sets === 1 ? "" : "s"}` + (p.prs.length ? " · PR" : "");
+      },
+      label: (c) => ` ${fmt(c.parsed.y)}  ${c.dataset.label}` +
+        (c.dataset.label === "Top set" && points[c.dataIndex].top_reps ? ` × ${points[c.dataIndex].top_reps}` : ""),
+      labelColor: (c) => ({ borderColor: c.dataset.borderColor, backgroundColor: c.dataset.borderColor }),
+      labelPointStyle: () => ({ pointStyle: "line", rotation: 0 }),
+    },
+  });
+
+  const axes = (fmt) => ({
+    x: { grid: { display: false }, border: { color: css("--viz-axis") },
+         ticks: { color: css("--viz-muted"), maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+    y: { grid: { color: css("--viz-grid") }, border: { display: false }, grace: "8%",
+         ticks: { color: css("--viz-muted"), maxTicksLimit: 6, callback: (v) => fmt(v) } },
+  });
+
+  function line(label, data, color, dashed, dense) {
+    return {
+      label, data, borderColor: color, backgroundColor: color, borderWidth: 2, tension: 0,
+      borderDash: dashed ? [6, 4] : [], borderJoinStyle: "round", borderCapStyle: "round",
+      pointRadius: dense ? 0 : 4, pointHoverRadius: 6, pointHitRadius: 12,
+      pointBackgroundColor: color, pointBorderColor: css("--viz-surface"), pointBorderWidth: 2,
+    };
+  }
+
+  function lineChart(canvas, points, datasets, fmt) {
+    return new Chart(canvas, {
+      type: "line",
+      data: { labels: points.map((p) => fmtDay(p.date)), datasets },
+      plugins: [crosshair, endLabels(fmt)],
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false, spanGaps: true,
+        layout: { padding: { right: 40, top: 8 } },
+        interaction: { mode: "index", intersect: false },
+        onClick: (evt, els, chart) => openSession(chart, evt, points),
+        plugins: { legend: { display: false }, tooltip: tooltip(points, fmt) },
+        scales: axes(fmt),
+      },
+    });
+  }
+
+  function barChart(canvas, points, label, data, fmt) {
+    return new Chart(canvas, {
+      type: "bar",
+      data: { labels: points.map((p) => fmtDay(p.date)),
+              datasets: [{ label, data, backgroundColor: css("--s-1"), borderColor: css("--s-1"),
+                           borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: "bottom",
+                           maxBarThickness: 28, categoryPercentage: 0.8, barPercentage: 0.9 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "index", intersect: false },
+        onClick: (evt, els, chart) => openSession(chart, evt, points),
+        plugins: { legend: { display: false }, tooltip: tooltip(points, fmt) },
+        scales: Object.assign(axes(fmt), {}),
+      },
+    });
+  }
+
+  function openSession(chart, evt, points) {
+    const hit = chart.getElementsAtEventForMode(evt, "index", { intersect: false }, false);
+    if (hit.length) location.href = "/workout/session/" + points[hit[0].index].session_id;
+  }
+
+  function cell(tr, text, tag) { const td = document.createElement(tag || "td"); td.textContent = text; tr.appendChild(td); return td; }
+
+  function render(data) {
+    last = data;
+    Object.values(charts).forEach((c) => c.destroy());
+    const pts = data.points;
+    $("range-label").textContent = `${pts.length} session${pts.length === 1 ? "" : "s"}` +
+      (range === "all" ? ", all time" : ", last " + RANGE_TEXT[range]);
+    $("charts").hidden = !pts.length;
+    $("empty").hidden = !!pts.length;
+    if (!pts.length) return;
+    const dense = pts.length > 40, u = CFG.unit;
+    const wfmt = (v) => num(v);
+    if (has("weight")) {
+      const ds = [line("Top set", pts.map((p) => p.top_weight), css("--s-1"), false, dense)];
+      if (has("e1rm")) ds.push(line("Est. 1RM", pts.map((p) => p.e1rm), css("--s-2"), true, dense));
+      charts.s = lineChart($("strength-chart"), pts, ds, wfmt);
+    }
+    if (has("e1rm")) charts.v = barChart($("volume-chart"), pts, "Volume", pts.map((p) => p.volume), wfmt);
+    if (has("reps")) charts.r = lineChart($("reps-chart"), pts,
+      [line("Most reps", pts.map((p) => p.max_reps), css("--s-1"), false, dense)], (v) => String(Math.round(v)));
+    if (has("time")) charts.t = lineChart($("time-chart"), pts,
+      [line("Longest set", pts.map((p) => p.max_time), css("--s-1"), false, dense)], mmss);
+
+    // table view, newest first
+    const cols = ["Date", "Sets"];
+    if (has("weight")) cols.push("Top set");
+    if (has("e1rm")) cols.push("Est. 1RM", "Volume");
+    if (has("reps")) cols.push("Most reps");
+    cols.push("Longest set", "Avg rest", "PR");
+    const head = $("table-head");
+    head.replaceChildren();
+    cols.forEach((c) => cell(head, c, "th"));
+    const body = $("table-body");
+    body.replaceChildren();
+    pts.slice().reverse().forEach((p) => {
+      const tr = document.createElement("tr");
+      const th = document.createElement("th"); th.scope = "row";
+      const a = document.createElement("a"); a.href = "/workout/session/" + p.session_id; a.textContent = p.date;
+      th.appendChild(a); tr.appendChild(th);
+      cell(tr, String(p.sets));
+      if (has("weight")) cell(tr, p.top_weight == null ? "–" : `${num(p.top_weight)} ${u}` + (p.top_reps ? ` × ${p.top_reps}` : ""));
+      if (has("e1rm")) { cell(tr, p.e1rm == null ? "–" : `${num(p.e1rm)} ${u}`); cell(tr, p.volume == null ? "–" : num(p.volume)); }
+      if (has("reps")) cell(tr, p.max_reps == null ? "–" : String(p.max_reps));
+      cell(tr, mmss(p.max_time));
+      cell(tr, p.avg_rest == null ? "–" : mmss(p.avg_rest));
+      cell(tr, p.prs.length ? "★" : "");
+      body.appendChild(tr);
+    });
+  }
+
+  async function load() {
+    document.querySelectorAll("[data-range]").forEach((b) => {
+      const on = b.dataset.range === range;
+      b.setAttribute("aria-pressed", String(on));
+      b.classList.toggle("secondary", !on);
+    });
+    const q = new URLSearchParams();
+    if (range !== "all") {
+      const d = new Date(); d.setDate(d.getDate() - Number(range));
+      q.set("since", `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    }
+    $("charts").classList.add("loading");
+    const res = await fetch(`/api/workout/exercises/${CFG.id}/progress?${q}`);
+    $("charts").classList.remove("loading");
+    if (res.status === 401) { location.href = "/login"; return; }
+    if (res.ok) render(await res.json());
+  }
+
+  document.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => {
+    range = b.dataset.range;
+    try { localStorage.setItem("workout-progress-range", range); } catch (e) {}
+    load();
+  }));
+  new MutationObserver(() => last && render(last))
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  load();
+})();
+</script>
+{% endblock %}

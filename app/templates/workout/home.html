@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "workout/_fmt.html" import session_card %}
+{% from "workout/_fmt.html" import session_card, dur, pr_value %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -11,7 +11,7 @@
 {% if active %}
 <section class="panel">
   <a class="button-link primary wo-big" href="/workout/session/{{ active.id }}">Continue workout · started {{ active.started_at[11:16] }}</a>
-  <p class="muted">{{ active.summary.sets }} sets so far{% if active.exercises %}: {% for e in active.exercises %}{{ e.name }}{{ ", " if not loop.last }}{% endfor %}{% endif %}</p>
+  <p class="muted">{{ active.summary.sets }} set{{ "" if active.summary.sets == 1 else "s" }} so far{% if active.exercises %}: {% for e in active.exercises %}{{ e.name }}{{ ", " if not loop.last }}{% endfor %}{% endif %}</p>
 </section>
 {% elif has_exercises %}
 <form method="post" action="/workout/start">
@@ -21,6 +21,30 @@
 <section class="panel">
   <p>Add the exercises you do first: name, whether it uses reps and weight, and the rest you want between sets.</p>
   <a class="button-link primary wo-big" href="/workout/exercises/new">+ Add exercise</a>
+</section>
+{% endif %}
+
+{% if week.workouts or prs %}
+<div class="stat-row" aria-label="This week">
+  <div class="stat"><span class="stat-label">Workouts this week</span><span class="stat-value">{{ week.workouts }}</span></div>
+  <div class="stat"><span class="stat-label">Sets</span><span class="stat-value">{{ week.sets }}</span></div>
+  <div class="stat"><span class="stat-label">Training time</span><span class="stat-value">{{ dur(week.time_sec) }}</span></div>
+</div>
+{% endif %}
+
+{% if prs %}
+<section class="panel">
+  <h2>Recent PRs <span class="muted">last 30 days</span></h2>
+  <ul class="entry-list pr-list">
+    {% for p in prs %}
+    <li>
+      <a class="entry-main session-link" href="/workout/progress/{{ p.exercise_id }}">
+        <span class="entry-name"><span class="pr-badge" aria-hidden="true">PR</span> {{ p.exercise }}</span>
+        <span class="entry-meta">{{ p.label }}: {{ pr_value(p.kind, p.value, p.unit, p.reps if p.kind == "weight") }} · {{ p.date }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
 </section>
 {% endif %}
 

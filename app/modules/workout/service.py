@@ -224,11 +224,14 @@ def session_detail(conn, user_id: int, session_id: int) -> dict | None:
             " JOIN workout_exercises e ON e.id = se.exercise_id WHERE se.session_id = ? ORDER BY se.position",
             (session_id,)):
         sets, prev_end = [], None
+        prs, best_before = session_prs(conn, user_id, se["exercise_id"], session_id)
         for r in conn.execute("SELECT * FROM workout_sets WHERE session_exercise_id = ? AND user_id = ?"
                               " ORDER BY started_at", (se["id"], user_id)):
-            sets.append(_set_dict(r, prev_end))
+            sets.append(_set_dict(r, prev_end) | {"prs": prs.get(r["uid"], [])})
             prev_end = r["ended_at"]
         exercises.append({
+            "pr_kinds": list(pr_kinds(bool(se["track_reps"]), bool(se["track_weight"]))),
+            "best_before": best_before,
             "id": se["id"], "exercise_id": se["exercise_id"], "name": se["name"],
             "track_reps": bool(se["track_reps"]), "track_weight": bool(se["track_weight"]),
             "unit": se["unit"], "target_rest_sec": se["target_rest_sec"], "group_id": se["group_id"],
@@ -279,3 +282,177 @@ def exercise_history(conn, user_id: int, exercise_id: int, limit: int = 20) -> l
         if sets:
             out.append({"date": se["started_at"][:10], "sets": sets, "summary": _summary(sets)})
     return out
+
+
+# --- progress & personal records (phase 2)
+#
+# All weights are converted to the exercise's unit. Estimated 1RM uses the
+# Epley formula, only for 1-12 reps (beyond that it's guesswork). PR kinds
+# depend on what the exercise tracks:
+#   weight tracked          -> "weight" (heaviest set), "e1rm" (if reps too)
+#   reps only (bodyweight)  -> "reps" (most reps in a set)
+#   neither (timed hold)    -> "time" (longest set)
+# A set is flagged as a PR only when it beats every earlier set *and* there
+# is an earlier session to beat (your first session isn't all PRs).
+
+LB_PER_KG = 2.20462
+PR_LABELS = {"weight": "Heaviest", "e1rm": "Best est. 1RM", "reps": "Most reps", "time": "Longest set"}
+
+
+def convert(weight: float | None, from_unit: str, to_unit: str) -> float | None:
+    if weight is None or from_unit == to_unit:
+        return weight
+    return weight * LB_PER_KG if to_unit == "lb" else weight / LB_PER_KG
+
+
+def e1rm(weight: float | None, reps: int | None) -> float | None:
+    if not weight or not reps or not 1 <= reps <= 12:
+        return None
+    return round(weight if reps == 1 else weight * (1 + reps / 30), 1)
+
+
+def pr_kinds(track_reps: bool, track_weight: bool) -> tuple[str, ...]:
+    if track_weight:
+        return ("weight", "e1rm") if track_reps else ("weight",)
+    return ("reps",) if track_reps else ("time",)
+
+
+def _metrics(row, unit: str) -> dict:
+    w = convert(row["weight"], row["unit"], unit)
+    return {"weight": round(w, 1) if w is not None else None, "e1rm": e1rm(w, row["reps"]),
+            "reps": row["reps"], "time": _secs(row["started_at"], row["ended_at"])}
+
+
+def _scan(conn, user_id: int, ex) -> list[dict]:
+    """Every session that has sets of exercise `ex` (a workout_exercises row
+    or Exercise), oldest first, with per-set metrics and PR flags and the
+    bests as they stood before the session."""
+    kinds = pr_kinds(bool(ex["track_reps"]), bool(ex["track_weight"]))
+    best = {k: None for k in kinds}
+    out, cur = [], None
+    for r in conn.execute(
+            "SELECT x.*, s.id AS session_id, s.started_at AS session_start FROM workout_sets x"
+            " JOIN workout_session_exercises se ON se.id = x.session_exercise_id"
+            " JOIN workout_sessions s ON s.id = se.session_id"
+            " WHERE s.user_id = ? AND x.user_id = ? AND se.exercise_id = ?"
+            " ORDER BY s.started_at, x.started_at", (user_id, user_id, ex["id"])):
+        if cur is None or cur["session_id"] != r["session_id"]:
+            cur = {"session_id": r["session_id"], "date": r["session_start"][:10],
+                   "best_before": dict(best), "sets": []}
+            out.append(cur)
+        m = _metrics(r, ex["unit"])
+        flags = [k for k in kinds if len(out) > 1 and m[k] is not None
+                 and best[k] is not None and m[k] > best[k]]
+        for k in kinds:
+            if m[k] is not None and (best[k] is None or m[k] > best[k]):
+                best[k] = m[k]
+        cur["sets"].append({"uid": r["uid"], "row": r, "m": m, "prs": flags})
+    return out
+
+
+def _ex_row(conn, user_id: int, exercise_id: int):
+    return conn.execute("SELECT * FROM workout_exercises WHERE id = ? AND user_id = ?",
+                        (exercise_id, user_id)).fetchone()
+
+
+def session_prs(conn, user_id: int, exercise_id: int, session_id: int) -> tuple[dict, dict]:
+    """(uid -> PR kinds, bests before this session) for one exercise."""
+    ex = _ex_row(conn, user_id, exercise_id)
+    if ex is None:
+        return {}, {}
+    entries = _scan(conn, user_id, ex)
+    for i, e in enumerate(entries):
+        if e["session_id"] == session_id:
+            return {s["uid"]: s["prs"] for s in e["sets"]}, e["best_before"]
+    # no sets yet this session: the bests so far, if there is history to beat
+    kinds = pr_kinds(bool(ex["track_reps"]), bool(ex["track_weight"]))
+    best = {k: None for k in kinds}
+    for e in entries:
+        for s in e["sets"]:
+            for k in kinds:
+                v = s["m"][k]
+                if v is not None and (best[k] is None or v > best[k]):
+                    best[k] = v
+    return {}, best
+
+
+def exercise_progress(conn, user_id: int, exercise_id: int, since: str | None = None) -> dict | None:
+    """Per-session series for charts (from `since` 'YYYY-MM-DD') and all-time records."""
+    ex = _ex_row(conn, user_id, exercise_id)
+    if ex is None:
+        return None
+    kinds = pr_kinds(bool(ex["track_reps"]), bool(ex["track_weight"]))
+    points, records = [], {}
+    for e in _scan(conn, user_id, ex):
+        ms = [s["m"] for s in e["sets"]]
+        top = max((m for m in ms if m["weight"] is not None), key=lambda m: (m["weight"], m["reps"] or 0),
+                  default=None)
+        volume = round(sum((m["weight"] or 0) * (m["reps"] or 0) for m in ms), 1)
+        rests, prev = [], None
+        for s in e["sets"]:
+            if prev:
+                rests.append(max(0, _secs(prev, s["row"]["started_at"])))
+            prev = s["row"]["ended_at"]
+        p = {"date": e["date"], "session_id": e["session_id"], "sets": len(ms),
+             "reps": sum(m["reps"] or 0 for m in ms),
+             "top_weight": top["weight"] if top else None, "top_reps": top["reps"] if top else None,
+             "e1rm": max((m["e1rm"] for m in ms if m["e1rm"] is not None), default=None),
+             "max_reps": max((m["reps"] for m in ms if m["reps"] is not None), default=None),
+             "max_time": max(m["time"] for m in ms), "tut": sum(m["time"] for m in ms),
+             "volume": volume or None, "avg_rest": round(sum(rests) / len(rests)) if rests else None,
+             "prs": sorted({k for s in e["sets"] for k in s["prs"]})}
+        # all-time records (every session counts, not just the chart range)
+        for k, val, extra in (("weight", p["top_weight"], {"reps": p["top_reps"]}), ("e1rm", p["e1rm"], {}),
+                              ("reps", p["max_reps"], {}), ("time", p["max_time"], {}),
+                              ("volume", p["volume"], {})):
+            if (k in kinds or k == "volume" and "e1rm" in kinds) and val is not None \
+                    and (k not in records or val > records[k]["value"]):
+                records[k] = {"value": val, "date": p["date"], "session_id": p["session_id"], **extra}
+        if since is None or p["date"] >= since:
+            points.append(p)
+    return {"exercise": _exercise(ex).model_dump(), "kinds": list(kinds), "points": points,
+            "records": records}
+
+
+def recent_prs(conn, user_id: int, since: str, limit: int = 8) -> list[dict]:
+    """PR sets logged on or after `since` (YYYY-MM-DD), newest first; the
+    best value per exercise and kind."""
+    found = {}
+    for ex in conn.execute("SELECT * FROM workout_exercises WHERE user_id = ?", (user_id,)).fetchall():
+        for e in _scan(conn, user_id, ex):
+            if e["date"] < since:
+                continue
+            for s in e["sets"]:
+                for k in s["prs"]:
+                    key = (ex["id"], k)
+                    if key not in found or s["m"][k] > found[key]["value"]:
+                        found[key] = {"exercise_id": ex["id"], "exercise": ex["name"], "kind": k,
+                                      "label": PR_LABELS[k], "value": s["m"][k], "reps": s["m"]["reps"],
+                                      "unit": ex["unit"], "date": e["date"], "session_id": e["session_id"]}
+    return sorted(found.values(), key=lambda x: x["date"], reverse=True)[:limit]
+
+
+def weekly(conn, user_id: int, today, weeks: int = 8) -> list[dict]:
+    """Mon-Sun weeks, newest first: workouts, sets, training time (seconds)."""
+    from datetime import date as _date, timedelta as _td
+    monday = today - _td(days=today.weekday())
+    start = monday - _td(weeks=weeks - 1)
+    rows = {}
+    for s in conn.execute("SELECT id, started_at, ended_at FROM workout_sessions WHERE user_id = ?"
+                          " AND started_at >= ?", (user_id, start.isoformat())).fetchall():
+        d = _date.fromisoformat(s["started_at"][:10])
+        wk = d - _td(days=d.weekday())
+        n_sets, last_end = conn.execute(
+            "SELECT COUNT(*), MAX(x.ended_at) FROM workout_sets x JOIN workout_session_exercises se"
+            " ON se.id = x.session_exercise_id WHERE se.session_id = ? AND x.user_id = ?",
+            (s["id"], user_id)).fetchone()
+        if not n_sets:
+            continue
+        end = s["ended_at"] or last_end
+        r = rows.setdefault(wk, {"workouts": 0, "sets": 0, "time_sec": 0})
+        r["workouts"] += 1
+        r["sets"] += n_sets
+        r["time_sec"] += max(0, _secs(s["started_at"], end))
+    return [{"week": (monday - _td(weeks=i)).isoformat(),
+             **rows.get(monday - _td(weeks=i), {"workouts": 0, "sets": 0, "time_sec": 0})}
+            for i in range(weeks)]
