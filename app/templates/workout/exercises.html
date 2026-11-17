@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Exercises</h1>
+    <p class="page-subtitle">The exercise types you log. Archived ones keep their history.</p>
+  </div>
+</div>
+<div class="add-row"><a class="button-link primary" href="/workout/exercises/new">+ Exercise</a></div>
+{% if exercises %}
+<section class="panel">
+  <ul class="entry-list med-list">
+    {% for e in exercises %}
+    <li class="{{ '' if e.active else 'med-paused' }}">
+      <span class="entry-main">
+        <span class="entry-name">{{ e.name }}</span>
+        <span class="entry-meta">
+          {% if not e.active %}Archived · {% endif %}
+          {%- set bits = [] -%}
+          {%- if e.category %}{% set _ = bits.append(e.category) %}{% endif -%}
+          {%- if e.equipment %}{% set _ = bits.append(e.equipment) %}{% endif -%}
+          {%- set _ = bits.append("reps + weight" if e.track_reps and e.track_weight else "reps" if e.track_reps else "weight, timed" if e.track_weight else "timed") -%}
+          {%- set _ = bits.append("rest " ~ e.default_rest_sec ~ "s") -%}
+          {{ bits|join(" · ") }}
+        </span>
+      </span>
+      <span class="med-actions">
+        <a class="icon-btn" href="/workout/exercises/{{ e.id }}" aria-label="Edit {{ e.name }}" title="Edit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></a>
+        <form method="post" action="/workout/exercises/{{ e.id }}/active" class="inline">
+          <input type="hidden" name="active" value="{{ 0 if e.active else 1 }}">
+          {% if e.active %}
+          <button type="submit" class="icon-btn" aria-label="Archive {{ e.name }}" title="Archive (hide, keep history)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v3H4zM6 10v9h12v-9M10 14h4"/></svg></button>
+          {% else %}
+          <button type="submit" class="icon-btn" aria-label="Restore {{ e.name }}" title="Restore">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></svg></button>
+          {% endif %}
+        </form>
+        <form method="post" action="/workout/exercises/{{ e.id }}/delete" class="inline"
+              data-confirm="Delete {{ e.name }} and every set logged for it? Archive keeps the history.">
+          <button type="submit" class="icon-btn danger-icon" aria-label="Delete {{ e.name }}" title="Delete">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<section class="panel"><p class="muted">No exercises yet. Add the ones you do, e.g. Back squat, Kettlebell swing, Plank.</p></section>
+{% endif %}
+{% endblock %}

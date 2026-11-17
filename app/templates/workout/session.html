@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "workout/_fmt.html" import dur, num %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{% if s.in_progress %}Workout{% else %}Workout · {{ s.started_at[:10] }}{% endif %}</h1>
+    <p class="page-subtitle">
+      Started {{ s.started_at[11:16] }}
+      {% if s.in_progress %}· <span id="wo-elapsed" aria-live="off"></span>{% else %}· {{ dur(s.duration_sec) }}{% endif %}
+      · <span id="wo-total">{{ s.summary.sets }} sets</span>
+      <span id="wo-sync" class="wo-sync" role="status" hidden></span>
+    </p>
+  </div>
+</div>
+
+<noscript><p class="error">The workout timer needs JavaScript.</p></noscript>
+
+{# exercises and their sets: rendered by workout.js from the JSON below #}
+<div id="wo-exercises"></div>
+
+{% if s.in_progress %}
+<section class="panel wo-add">
+  {% if exercises %}
+  <form id="wo-add" class="row">
+    <label class="visually-hidden" for="wo-add-select">Exercise</label>
+    <select id="wo-add-select" name="exercise_id">
+      {% for e in exercises %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="secondary">+ Add</button>
+  </form>
+  {% endif %}
+  <p class="muted wo-hint"><a href="/workout/exercises/new">New exercise type</a></p>
+</section>
+
+{# the control dock: set timer / rest timer for the current exercise #}
+<section id="wo-dock" class="wo-dock" aria-label="Set timer" hidden>
+  <div class="wo-dock-head">
+    <span id="wo-dock-name" class="entry-name"></span>
+    <span id="wo-dock-setno" class="muted"></span>
+  </div>
+  <div id="wo-clock" class="wo-clock" aria-live="polite">
+    <span id="wo-clock-label" class="wo-clock-label">Ready</span>
+    <span id="wo-clock-time" class="wo-clock-time">0:00</span>
+    <span id="wo-clock-sub" class="wo-clock-sub"></span>
+  </div>
+  <div class="wo-inputs">
+    <label id="wo-reps-wrap">Reps
+      <input id="wo-reps" type="number" inputmode="numeric" min="0" max="1000" step="1">
+    </label>
+    <label id="wo-weight-wrap">Weight <span id="wo-unit" class="muted"></span>
+      <input id="wo-weight" type="number" inputmode="decimal" min="0" max="2000" step="0.5">
+    </label>
+  </div>
+  <button id="wo-main" type="button" class="wo-main">Start set</button>
+</section>
+
+<form method="post" action="/workout/session/{{ s.id }}/finish" id="wo-finish" class="wo-finish">
+  <button type="submit" class="secondary">Finish workout</button>
+</form>
+{% else %}
+<form method="post" action="/workout/session/{{ s.id }}/delete" class="inline"
+      data-confirm="Delete this workout and all its sets?">
+  <button type="submit" class="secondary compact">Delete workout</button>
+</form>
+{% endif %}
+
+<dialog id="wo-edit" aria-labelledby="wo-edit-title">
+  <form method="dialog" id="wo-edit-form">
+    <div class="dialog-head"><h2 id="wo-edit-title">Edit set</h2></div>
+    <p id="wo-edit-meta" class="muted"></p>
+    <div class="wo-inputs">
+      <label id="wo-edit-reps-wrap">Reps <input id="wo-edit-reps" type="number" inputmode="numeric" min="0" max="1000" step="1"></label>
+      <label id="wo-edit-weight-wrap">Weight <input id="wo-edit-weight" type="number" inputmode="decimal" min="0" max="2000" step="0.5"></label>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="secondary danger-text" id="wo-edit-delete">Delete set</button>
+      <button type="button" class="secondary" id="wo-edit-cancel">Cancel</button>
+      <button type="submit" id="wo-edit-save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="application/json" id="wo-data">{{ s|tojson }}</script>
+<script src="{{ static_url('workout.js') }}"></script>
+{% endblock %}

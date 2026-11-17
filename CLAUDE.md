@@ -116,6 +116,39 @@ medications and supplements, kept apart by `meds.kind` (`medication` |
 - Validation: `schemas.MedIn` (name required ≤80, dose ≤80, notes ≤300,
   ≤6 distinct `HH:MM` times; none = as needed).
 
+Workout module (`app/modules/workout/`, templates in `app/templates/workout/`,
+live page script `app/static/workout.js`) — strength training. Plan:
+the "workout-module-plan" doc in the HEALTH APP Claude project.
+- Tabs: Workout `/workout` (Start / Continue workout, recent), History
+  `/workout/history`, Exercises `/workout/exercises` (user-defined types:
+  name, category, equipment, track reps / track weight switches, unit lb|kg,
+  default rest seconds; Archive = hidden, history kept; Delete = removes sets).
+- Tables (`0005_workout`): `workout_exercises`, `workout_sessions`
+  (`ended_at` NULL = in progress; unfinished > 6 h is stale),
+  `workout_session_exercises` (`target_rest_sec` copied from the exercise,
+  `group_id` reserved for supersets), `workout_sets` (client `uid` UNIQUE,
+  `started_at`/`ended_at` local 'YYYY-MM-DDTHH:MM:SS', reps, weight, unit,
+  rpe, tempo).
+- Derived, never stored (`service._set_dict` / `_summary`, mirrored in
+  workout.js `recompute`): duration = time under tension (measured), rest
+  before a set = its start − previous set's end in the same session-exercise,
+  estimated TUT = reps × tempo seconds, volume = reps × weight.
+- Live page `/workout/session/{id}`: rendered client-side from a `|tojson`
+  blob. Phases ready → set → rest; timing is Date.now() timestamps kept in
+  localStorage (`workout:<id>`), so reloads/backgrounding don't lose time.
+  Rest target reached → vibrate + beep (audio unlocked by the Start tap).
+  Wake Lock keeps the screen on. Sets go through a localStorage queue
+  (`workout:queue`) PUT to `/api/workout/sets` (idempotent upsert by uid;
+  rejected/invalid uids are dropped), retried on `online` and page load.
+  Tap a set row to edit reps/weight or delete it.
+- JSON under `/api/workout`: exercises CRUD + `/exercises/{id}/history`,
+  sessions (start = resume if one is in progress, finish = end at last set's
+  end), `/sessions/{id}/exercises`, `/session-exercises/{id}`, `PUT /sets`,
+  `PATCH|DELETE /sets/{uid}`. Validation: `schemas.SetIn` (end ≥ start, ≤ 1 h,
+  tempo like 3-1-1-0, uid `[A-Za-z0-9-]{8,64}`).
+- Backup: `workout_exercises` + nested `workout_sessions` (exercises by name,
+  sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`).
+
 ## Adding a module
 
 1. `app/modules/<key>/` with `web.py` (`APIRouter(prefix="/<key>")`),

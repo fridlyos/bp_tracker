@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "workout/_fmt.html" import session_card %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Workout</h1>
+    <p class="page-subtitle">Strength training: sets, reps, weight, time under tension and rest.</p>
+  </div>
+</div>
+
+{% if active %}
+<section class="panel">
+  <a class="button-link primary wo-big" href="/workout/session/{{ active.id }}">Continue workout · started {{ active.started_at[11:16] }}</a>
+  <p class="muted">{{ active.summary.sets }} sets so far{% if active.exercises %}: {% for e in active.exercises %}{{ e.name }}{{ ", " if not loop.last }}{% endfor %}{% endif %}</p>
+</section>
+{% elif has_exercises %}
+<form method="post" action="/workout/start">
+  <button type="submit" class="wo-big">Start workout</button>
+</form>
+{% else %}
+<section class="panel">
+  <p>Add the exercises you do first: name, whether it uses reps and weight, and the rest you want between sets.</p>
+  <a class="button-link primary wo-big" href="/workout/exercises/new">+ Add exercise</a>
+</section>
+{% endif %}
+
+{% if recent %}
+<section class="panel">
+  <h2>Recent</h2>
+  <ul class="entry-list session-list">
+    {% for s in recent %}{{ session_card(s) }}{% endfor %}
+  </ul>
+  <p><a href="/workout/history">All workouts</a></p>
+</section>
+{% endif %}
+{% endblock %}

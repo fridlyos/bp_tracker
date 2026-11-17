@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from .modules.bp.schemas import ReadingIn
 from .modules.meds.schemas import MedIn
+from .modules.workout.schemas import ExerciseIn, SetIn
 
 FORMAT = "my-apps-backup"
 VERSION = 1
@@ -39,7 +40,35 @@ def export_user(conn, user_id: int, username: str) -> dict:
                          " WHERE user_id = ? ORDER BY taken_at"),
         "bp_reminders": q("SELECT at_time, tz FROM bp_reminders WHERE user_id = ? ORDER BY at_time"),
         "meds": meds,
+        "workout_exercises": [
+            {**r, "track_reps": bool(r["track_reps"]), "track_weight": bool(r["track_weight"]),
+             "active": bool(r["active"])}
+            for r in q("SELECT name, category, equipment, track_reps, track_weight, unit, default_rest_sec,"
+                       " notes, active FROM workout_exercises WHERE user_id = ? ORDER BY id")],
+        "workout_sessions": _export_sessions(conn, user_id),
     }
+
+
+_SET_COLS = ("uid", "reps", "weight", "unit", "started_at", "ended_at", "rpe", "tempo", "note")
+
+
+def _export_sessions(conn, user_id: int) -> list[dict]:
+    out = []
+    for s in conn.execute("SELECT id, started_at, ended_at, notes FROM workout_sessions WHERE user_id = ?"
+                          " ORDER BY started_at", (user_id,)).fetchall():
+        exs = []
+        for se in conn.execute(
+                "SELECT se.id, e.name, se.position, se.group_id, se.target_rest_sec FROM workout_session_exercises se"
+                " JOIN workout_exercises e ON e.id = se.exercise_id WHERE se.session_id = ? ORDER BY se.position",
+                (s["id"],)).fetchall():
+            sets = [dict(r) for r in conn.execute(
+                f"SELECT {', '.join(_SET_COLS)} FROM workout_sets WHERE session_exercise_id = ? AND user_id = ?"
+                " ORDER BY started_at", (se["id"], user_id))]
+            exs.append({"exercise": se["name"], "position": se["position"], "group_id": se["group_id"],
+                        "target_rest_sec": se["target_rest_sec"], "sets": sets})
+        out.append({"started_at": s["started_at"], "ended_at": s["ended_at"], "notes": s["notes"],
+                    "exercises": exs})
+    return out
 
 
 def _tz(name) -> str:
@@ -123,8 +152,93 @@ def restore_user(conn, user_id: int, data) -> dict:
             cur = conn.execute("INSERT OR IGNORE INTO med_doses (user_id, med_id, scheduled_for, status,"
                                " logged_at) VALUES (?,?,?,?,?)", (user_id, med_id, slot, d["status"], logged))
             n["added" if cur.rowcount else "skipped"] += 1
+    _restore_workout(conn, user_id, rows, n)
     conn.commit()
     return n
+
+
+_SECOND = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
+
+
+def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
+    """Exercises matched by name; sessions by start time; sets by uid. A set
+    uid owned by another account (restoring someone's backup) gets a stable
+    per-account suffix, so restoring twice still adds nothing."""
+    ex_ids = {}
+    for r in rows("workout_exercises"):
+        try:
+            e = ExerciseIn(**{k: r.get(k) for k in ("name", "category", "equipment", "track_reps", "track_weight",
+                                                       "unit", "default_rest_sec", "notes") if r.get(k) is not None})
+        except (ValidationError, TypeError):
+            n["invalid"] += 1
+            continue
+        row = conn.execute("SELECT id FROM workout_exercises WHERE user_id = ? AND name = ? COLLATE NOCASE",
+                           (user_id, e.name)).fetchone()
+        if row:
+            n["skipped"] += 1
+            ex_ids[e.name.lower()] = row[0]
+            continue
+        ex_ids[e.name.lower()] = conn.execute(
+            "INSERT INTO workout_exercises (user_id, name, category, equipment, track_reps, track_weight, unit,"
+            " default_rest_sec, notes, active) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (user_id, e.name, e.category, e.equipment, int(e.track_reps), int(e.track_weight), e.unit,
+             e.default_rest_sec, e.notes, 0 if r.get("active") is False else 1)).lastrowid
+        n["added"] += 1
+
+    for s in rows("workout_sessions"):
+        start, end = s.get("started_at"), s.get("ended_at")
+        if not (isinstance(start, str) and _SECOND.match(start)) or \
+                not (end is None or (isinstance(end, str) and _SECOND.match(end))):
+            n["invalid"] += 1
+            continue
+        row = conn.execute("SELECT id FROM workout_sessions WHERE user_id = ? AND started_at = ?",
+                           (user_id, start)).fetchone()
+        if row:
+            sid = row[0]
+            n["skipped"] += 1
+        else:
+            notes = s.get("notes") if isinstance(s.get("notes"), str) else None
+            sid = conn.execute("INSERT INTO workout_sessions (user_id, started_at, ended_at, notes) VALUES (?,?,?,?)",
+                               (user_id, start, end, notes[:300] if notes else None)).lastrowid
+            n["added"] += 1
+        for x in s.get("exercises") if isinstance(s.get("exercises"), list) else []:
+            ex_id = ex_ids.get(x.get("exercise", "").lower()) if isinstance(x, dict) and \
+                isinstance(x.get("exercise"), str) else None
+            if ex_id is None:
+                n["invalid"] += 1
+                continue
+            row = conn.execute("SELECT id FROM workout_session_exercises WHERE session_id = ? AND exercise_id = ?",
+                               (sid, ex_id)).fetchone()
+            if row:
+                se_id = row[0]
+            else:
+                rest = x.get("target_rest_sec")
+                se_id = conn.execute(
+                    "INSERT INTO workout_session_exercises (session_id, exercise_id, position, group_id,"
+                    " target_rest_sec) VALUES (?,?,?,?,?)",
+                    (sid, ex_id, x.get("position") if isinstance(x.get("position"), int) else 0,
+                     x.get("group_id") if isinstance(x.get("group_id"), int) else None,
+                     rest if isinstance(rest, int) and 0 <= rest <= 1800 else 90)).lastrowid
+            for st in x.get("sets") if isinstance(x.get("sets"), list) else []:
+                try:
+                    v = SetIn(**{k: st.get(k) for k in _SET_COLS}, session_exercise_id=se_id)
+                except (ValidationError, TypeError, AttributeError):
+                    n["invalid"] += 1
+                    continue
+                uid = v.uid
+                owner = conn.execute("SELECT user_id FROM workout_sets WHERE uid = ?", (uid,)).fetchone()
+                if owner and owner[0] != user_id:
+                    uid = f"{v.uid[:50]}-u{user_id}"
+                    owner = conn.execute("SELECT user_id FROM workout_sets WHERE uid = ?", (uid,)).fetchone()
+                if owner:
+                    n["skipped"] += 1
+                    continue
+                conn.execute(
+                    "INSERT INTO workout_sets (uid, user_id, session_exercise_id, reps, weight, unit, started_at,"
+                    " ended_at, rpe, tempo, note) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (uid, user_id, se_id, v.reps, v.weight, v.unit, v.started_at.isoformat(timespec="seconds"),
+                     v.ended_at.isoformat(timespec="seconds"), v.rpe, v.tempo, v.note))
+                n["added"] += 1
 
 
 def copy_database(conn, dest_path: str) -> None:
