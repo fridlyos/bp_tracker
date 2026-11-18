@@ -3,24 +3,24 @@
 
 :root {
   color-scheme: light;
-  --bg: #f8fafc;
+  --bg: #f4f6f7;
   --surface: #fff;
-  --surface-subtle: #f1f5f9;
+  --surface-subtle: #eef3f3;
   --text: #1e293b;
   --text-strong: #0f172a;
-  --muted: #64748b;
-  --muted-soft: #94a3b8;
-  --border: #e2e8f0;
-  --input-border: #cbd5e1;
+  --muted: #5f6f73;
+  --muted-soft: #8fa1a4;
+  --border: #e2e8ea;
+  --input-border: #c9d5d6;
   --sidebar-bg: #0f172a;
   --sidebar-hover: #1e293b;
   --sidebar-text: #cbd5e1;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
+  --primary: #0f766e;
+  --primary-hover: #115e59;
   --on-primary: #ffffff;
   --success: #15803d;
   --danger: #b91c1c;
-  --tag-bg: #e2e8f0;
+  --tag-bg: #e3eeec;
   --add-bg: #ecfdf5;
   --add-bg-hover: #d1fae5;
   --add-border: #a7f3d0;
@@ -28,35 +28,49 @@
   --add-text: #047857;
   --backdrop: rgb(15 23 42 / .45);
   --shadow: 0 24px 60px rgb(15 23 42 / .22);
+  --btn2-bg: #e3eeec;
+  --btn2-hover: #d3e6e3;
+  --btn2-text: #134e4a;
+  --card-border: #e2e8ea;
+  --danger-bg: #fdecec;
+  --card-shadow: 0 1px 2px rgb(15 23 42 / .05), 0 4px 14px -6px rgb(15 23 42 / .10);
+  --btn-shadow: 0 1px 2px rgb(15 23 42 / .10), 0 3px 8px -2px rgb(15 118 110 / .40);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #274766;
-  --surface: #315574;
-  --surface-subtle: #3b6384;
-  --text: #eef6ff;
+  --bg: #1d2f33;
+  --surface: #263d42;
+  --surface-subtle: #2f4a50;
+  --text: #e9f3f2;
   --text-strong: #ffffff;
-  --muted: #c6d8e8;
-  --muted-soft: #9db8cf;
-  --border: #527692;
-  --input-border: #6f91aa;
-  --sidebar-bg: #213d58;
-  --sidebar-hover: #365f82;
-  --sidebar-text: #e2eef8;
-  --primary: #93c5fd;
-  --primary-hover: #bfdbfe;
-  --on-primary: #0f172a;  /* light-blue primary needs dark text */
+  --muted: #b9cfcd;
+  --muted-soft: #8fb0ad;
+  --border: #3c5a60;
+  --input-border: #557379;
+  --sidebar-bg: #1a2b2e;
+  --sidebar-hover: #2f4a50;
+  --sidebar-text: #d9ebe9;
+  --primary: #5ec4b6;
+  --primary-hover: #7fd6ca;
+  --on-primary: #0b2a28;  /* light-blue primary needs dark text */
   --success: #4ade80;
   --danger: #fca5a5;
-  --tag-bg: #456e8d;
+  --tag-bg: #335a57;
   --add-bg: #2f6f62;
   --add-bg-hover: #357c6d;
   --add-border: #54b49f;
   --add-border-hover: #7dd3c0;
   --add-text: #d8fff7;
-  --backdrop: rgb(24 47 70 / .62);
+  --backdrop: rgb(16 32 35 / .62);
   --shadow: 0 24px 60px rgb(12 35 57 / .35);
+  --btn2-bg: #2d5552;
+  --btn2-hover: #356461;
+  --btn2-text: #d4f1ed;
+  --card-border: #3c5a60;
+  --danger-bg: #4a2f33;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / .18), 0 6px 16px -8px rgb(0 0 0 / .35);
+  --btn-shadow: 0 1px 2px rgb(0 0 0 / .25), 0 3px 8px -2px rgb(94 196 182 / .30);
 }
 
 * { box-sizing: border-box; }
@@ -273,7 +287,7 @@ dialog::backdrop { background: var(--backdrop); }
 .reading-list .x-delete:hover { box-shadow: none; }
 
 /* --- trends (chart tokens validated with the dataviz palette checker against
-   these exact surfaces: light #fff, dark chart panel #1b3149) */
+   these exact surfaces: light #fff, dark chart panel #182b2e) */
 .viz-root {
   --viz-surface: #ffffff;
   --viz-tooltip: #ffffff;
@@ -291,13 +305,13 @@ dialog::backdrop { background: var(--backdrop); }
   --s-pulse: #6250d6;
 }
 :root[data-theme="dark"] .viz-root {
-  --viz-surface: #1b3149;
-  --viz-tooltip: #213d58;
+  --viz-surface: #182b2e;
+  --viz-tooltip: #22393d;
   --viz-text-1: #ffffff;
   --viz-text-2: #c6d8e8;
   --viz-muted: #9db8cf;
-  --viz-grid: #263f5a;
-  --viz-axis: #3d5a78;
+  --viz-grid: #24393d;
+  --viz-axis: #3f5b60;
   --z-good: #0ca30c;
   --z-sys-ok: #3987e5;
   --z-warn: #fab219;
@@ -532,7 +546,7 @@ button.wo-main.is-running { background: var(--danger); border-color: var(--dange
 
 /* --- workout phase 2: progress charts + PRs
    series tokens validated with the dataviz checker: light #2a78d6/#eb6834 on #fff,
-   dark #3987e5/#d95926 on the #1b3149 chart panel (CVD ΔE ≥ 24, contrast ≥ 3:1) */
+   dark #3987e5/#d95926 on the #182b2e chart panel (CVD ΔE ≥ 24, contrast ≥ 3:1) */
 .viz-root { --s-1: #2a78d6; --s-2: #eb6834; }
 :root[data-theme="dark"] .viz-root { --s-1: #3987e5; --s-2: #d95926; }
 .line-key-dash { background: repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 8px); }
@@ -669,3 +683,32 @@ a.stat:hover { background: var(--surface-subtle); }
 /* plain links inside workout pages: colour + weight, underline only on hover */
 .mod-workout main a:not([class]) { color: var(--primary); font-weight: 600; text-decoration: none; }
 .mod-workout main a:not([class]):hover { text-decoration: underline; text-underline-offset: 3px; }
+
+
+/* === Theme "Slate & teal": emphasis without extra colour ===
+   Primary actions: deeper fill + soft coloured shadow. Secondary actions:
+   tinted fill (no grey outline). Tiles and panels sit on soft cards. */
+button, a.button-link, .pill-link { font-weight: 650; }
+button:not(.secondary, .link-button, .icon-btn, .menu-item, .wo-ex-name, .wo-set, .x-delete, .icon-toggle, .danger, .icon-button),
+a.button-link.primary { box-shadow: var(--btn-shadow); }
+button.secondary, a.button-link.secondary, a.button-link:not(.primary) {
+  background: var(--btn2-bg); color: var(--btn2-text); border-color: transparent; }
+button.secondary:hover, a.button-link:not(.primary):hover { background: var(--btn2-hover); }
+.range-tabs button.secondary { color: var(--btn2-text); }
+.icon-btn { background: var(--btn2-bg); border-color: transparent; color: var(--btn2-text); }
+.icon-btn:hover { background: var(--btn2-hover); }
+.icon-btn.danger-icon { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+.icon-btn.danger-icon:hover { background: var(--danger); color: var(--surface); }
+.pill-link { background: var(--btn2-bg); color: var(--btn2-text); }
+.pill-link:hover { background: var(--btn2-hover); }
+:root[data-theme="dark"] .pill-link { background: var(--btn2-bg); }
+.day-step { background: var(--btn2-bg); color: var(--btn2-text); border-color: transparent; }
+.day-step.is-disabled { background: transparent; border-color: var(--border); }
+.wo-ex, .stat, .quick-links a, .rt-start-btn, .push-device, .wo-dock, .report-card, .chart-card, .rt-row,
+.remind-box, .measure-opt span {
+  border-color: var(--card-border); box-shadow: var(--card-shadow); }
+.stat, .quick-links a { background: var(--surface); }
+.rt-start-btn { background: var(--surface); }
+.wo-ex.is-current { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary), var(--card-shadow); }
+.measure-opt input:checked + span { box-shadow: inset 0 0 0 1px var(--primary), var(--card-shadow); }
+.app-icon-img { box-shadow: var(--btn-shadow); }

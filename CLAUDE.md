@@ -62,6 +62,12 @@ Core (shared by all modules):
   nav. iPhone: `viewport-fit=cover` + `env(safe-area-inset-*)` padding, ≥44px
   tap targets, inputs ≥16px (no iOS zoom). Text on primary fills uses
   `--on-primary` (dark text in dark mode).
+  Theme "Slate & teal" (end of `style.css`): primary teal `#0f766e` (dark
+  `#5ec4b6` with dark text); primary buttons get `--btn-shadow`; secondary
+  buttons / `.icon-btn` / `.pill-link` / `.day-step` use a tinted fill
+  (`--btn2-bg`, `--btn2-text`) instead of a grey outline; tiles, panels and
+  the timer dock use `--card-border` + `--card-shadow`. All text-on-fill
+  pairs ≥ 4.5:1; chart series/zones re-checked on the dark panel `#182b2e`.
 
 Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
 - `web.py` — pages under `/bp`: Today (quick add + today's list), `/bp/trends`,
@@ -85,7 +91,7 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
   91+ red. Zones use the rounded (displayed) value; the line colour is a
   vertical gradient with hard stops at x.5. Zone legend + tooltip label carry
   it in words too. Colours are `.viz-root` `--z-*` tokens, each ≥3:1 on the
-  light surface `#fff` and the dark chart panel `#1b3149` (light yellow is
+  light surface `#fff` and the dark chart panel `#182b2e` (light yellow is
   amber `#c98500` for contrast).
 - `templates/bp/reports.html` — `/bp/reports?period=week|month`: per week
   (Mon–Sun) or month, counts, avg/min/max and readings per BP zone. Zone
@@ -151,7 +157,7 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   tiles + Chart.js charts per session from `/api/workout/exercises/{id}/progress?since=`
   (Strength = top set solid `--s-1` + est. 1RM dashed `--s-2`, one axis;
   Volume bars; Most reps or Longest set for bodyweight / timed), table view.
-  Series tokens validated with the dataviz checker on #fff and #1b3149.
+  Series tokens validated with the dataviz checker on #fff and #182b2e.
   PRs (`service._scan`, mirrored in workout.js `recompute`): kinds by what
   the exercise tracks — weight → heaviest + est. 1RM (Epley, 1–12 reps);
   reps only → most reps; neither → longest set. A set is a PR when it beats
