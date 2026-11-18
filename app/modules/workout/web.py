@@ -2,7 +2,7 @@
 session page, History, and Exercises (the user's exercise types).
 POST-redirect-GET; anonymous -> /login. The live session page is driven by
 JS against /api/workout (timers, offline queue)."""
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from pydantic import ValidationError
@@ -39,8 +39,9 @@ def home(request: Request, conn=Depends(db.get_db), user: User | None = Depends(
         "has_exercises": bool(service.list_exercises(conn, user.id, active_only=True)),
         "routines": service.list_routines(conn, user.id),
         "settings": service.get_settings(conn, user.id),
-        "due": [r for r in (service.reminder_status(conn, x, now.date())
-                            for x in service.list_reminders(conn, user.id) if x["active"])
+        "due": [r for r in (service.reminder_status(conn, x, service._local(
+                    datetime.now(timezone.utc), x["tz"]).date()) for x in service.list_reminders(conn, user.id)
+                    if x["active"])
                 if r["today"] or r["done_today"]],
         "remind": request.query_params.get("remind", "")})
 
@@ -512,6 +513,20 @@ def reminder_delete(reminder_id: int, conn=Depends(db.get_db), user: User | None
         return redirect("/login")
     service.delete_reminder(conn, user.id, reminder_id)
     return redirect("/workout/reminders")
+
+
+@router.post("/reminders/{reminder_id}/skip")
+def reminder_skip(reminder_id: int, request: Request, undo: str = Form(""), conn=Depends(db.get_db),
+                  user: User | None = Depends(current_user)):
+    """Skip today's scheduled workout (undo=1 takes the skip back)."""
+    if user is None:
+        return redirect("/login")
+    rem = service.get_reminder(conn, user.id, reminder_id)
+    if rem is not None:  # "today" in the reminder's own zone, like the scheduler
+        from datetime import datetime, timezone
+        day = service._local(datetime.now(timezone.utc), rem["tz"]).date().isoformat()
+        service.skip_reminder(conn, user.id, reminder_id, day, skip=undo != "1")
+    return redirect("/workout")
 
 
 @router.post("/reminders/{reminder_id}/start")

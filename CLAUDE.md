@@ -188,7 +188,11 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   that local day, or a workout started from that routine with a set. Push
   opens `/workout?remind=<id>`; home "Today" lists today's reminders with
   Start (`POST /workout/reminders/{id}/start` = routine, or a workout with the
-  exercise added). Reminders page has the push-device block (`push.js`).
+  exercise added) and Skip (`POST /workout/reminders/{id}/skip`, `undo=1`
+  takes it back): a row in `workout_reminder_skips` (`0009`) for the local
+  day in the reminder's zone → no push that day, shown "Skipped today", not
+  counted toward the goal; hatched dot on the Reminders page.
+  Reminders page has the push-device block (`push.js`).
 - Exercise form (`web._save`, async, reads the whole form): "Measured by"
   radio `measure` = weight (reps+weight) | reps (bodyweight) | time (neither)
   → `track_reps`/`track_weight`; Time adds an optional target hold (min + sec
@@ -204,7 +208,7 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   `workout_routines` (by name, items by exercise name), `workout_settings`
   (restored only into an account without settings), session `calories` /
   `routine` name / per-exercise targets, `workout_reminders` (by target name,
-  matched on target + time + days).
+  matched on target + time + days, with their `skipped` days).
 
 ## Adding a module
 

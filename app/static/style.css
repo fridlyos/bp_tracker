@@ -630,3 +630,11 @@ a.stat:hover { background: var(--surface-subtle); }
 .remind-box legend { padding: 0 .3rem; font-weight: 650; }
 .remind-fields { margin-top: .4rem; }
 .wo-clock.is-set.is-over .wo-clock-time, .wo-clock.is-set.is-over .wo-clock-sub { color: var(--success); }
+
+/* --- reminders: skip today */
+.due-actions { display: inline-flex; gap: .4rem; }
+.due-actions form.inline { margin: 0; }
+.due-btn { min-height: 2.75rem; min-width: 4.5rem; font-weight: 700; }
+.due-skipped .entry-name { color: var(--muted); }
+.wk-dots i.skip { border-style: dashed; border-color: var(--muted); background: repeating-linear-gradient(135deg, var(--muted-soft) 0 1.5px, transparent 1.5px 4px); }
+.wo-note + .wo-links { margin-top: .6rem; }

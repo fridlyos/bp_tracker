@@ -762,7 +762,12 @@ def reminder_status(conn, rem: dict, today) -> dict:
     monday = today - timedelta(days=today.weekday())
     done = done_days(conn, rem, monday.isoformat(), (monday + timedelta(days=6)).isoformat())
     goal = rem["weekly_goal"] or len(rem["days"])
+    skipped = {r[0] for r in conn.execute(
+        "SELECT day FROM workout_reminder_skips WHERE reminder_id = ? AND day BETWEEN ? AND ?",
+        (rem["id"], monday.isoformat(), (monday + timedelta(days=6)).isoformat()))}
     return {**rem, "done_week": len(done), "goal": goal, "done_today": today.isoformat() in done,
+            "skipped_today": today.isoformat() in skipped,
+            "week_skipped": [(monday + timedelta(days=i)).isoformat() in skipped for i in range(7)],
             "today": today.weekday() in rem["days"], "goal_met": len(done) >= goal,
             "week_days": [(monday + timedelta(days=i)).isoformat() in done for i in range(7)]}
 
@@ -786,8 +791,8 @@ def send_reminders(conn, now_utc: datetime) -> None:
     log = logging.getLogger("bp_tracker.workout")
     for r in due_reminders(conn, now_utc):
         st = reminder_status(conn, r, r["local_now"].date())
-        if st["done_today"] or st["goal_met"]:
-            log.info("workout reminder %s skipped (done today or goal met)", r["id"])
+        if st["done_today"] or st["goal_met"] or st["skipped_today"]:
+            log.info("workout reminder %s not sent (done, skipped today or goal met)", r["id"])
         else:
             body = (f"{st['done_week']} of {st['goal']} days done this week. Tap to start."
                     if st["goal"] > 1 else "Tap to start.")
@@ -797,6 +802,20 @@ def send_reminders(conn, now_utc: datetime) -> None:
         conn.execute("UPDATE workout_reminders SET last_sent = ? WHERE id = ?",
                      (r["local_now"].date().isoformat(), r["id"]))
         conn.commit()
+
+
+def skip_reminder(conn, user_id: int, reminder_id: int, day: str, skip: bool = True) -> bool:
+    """Skip today's workout for a reminder (no push, not counted toward the
+    goal), or undo the skip."""
+    if get_reminder(conn, user_id, reminder_id) is None:
+        return False
+    if skip:
+        conn.execute("INSERT OR IGNORE INTO workout_reminder_skips (reminder_id, day) VALUES (?, ?)",
+                     (reminder_id, day))
+    else:
+        conn.execute("DELETE FROM workout_reminder_skips WHERE reminder_id = ? AND day = ?", (reminder_id, day))
+    conn.commit()
+    return True
 
 
 def start_reminder(conn, user_id: int, reminder_id: int, now: datetime) -> int | None:

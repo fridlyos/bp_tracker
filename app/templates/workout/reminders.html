@@ -35,7 +35,7 @@
           {%- if r.weekly_goal %} · goal {{ r.weekly_goal }} day{{ "" if r.weekly_goal == 1 else "s" }}/week{% endif %}
         </span>
         <span class="wk-dots" aria-label="This week: {{ r.done_week }} of {{ r.goal }} done">
-          {% for d in range(7) %}<i class="{{ 'done' if r.week_days[d] else ('plan' if d in r.days else '') }}" title="{{ day_names[d] }}"></i>{% endfor %}
+          {% for d in range(7) %}<i class="{{ 'done' if r.week_days[d] else ('skip' if r.week_skipped[d] else ('plan' if d in r.days else '')) }}" title="{{ day_names[d] }}{{ ' (skipped)' if r.week_skipped[d] and not r.week_days[d] else '' }}"></i>{% endfor %}
           <span class="muted">{{ r.done_week }}/{{ r.goal }} this week</span>
         </span>
       </span>

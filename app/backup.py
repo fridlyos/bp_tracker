@@ -50,7 +50,9 @@ def export_user(conn, user_id: int, username: str) -> dict:
         "workout_reminders": [
             {"exercise": r["name"] if r["kind"] == "exercise" else None,
              "routine": r["name"] if r["kind"] == "routine" else None,
-             **{k: r[k] for k in ("days", "at_time", "tz", "weekly_goal", "active")}}
+             **{k: r[k] for k in ("days", "at_time", "tz", "weekly_goal", "active")},
+             "skipped": [d for (d,) in conn.execute(
+                 "SELECT day FROM workout_reminder_skips WHERE reminder_id = ? ORDER BY day", (r["id"],))]}
             for r in _wo().list_reminders(conn, user_id)],
         "workout_settings": next(iter(q("SELECT body_weight, unit, intensity FROM workout_settings"
                                         " WHERE user_id = ?")), None),
@@ -302,16 +304,22 @@ def _restore_reminders(conn, user_id: int, rows, n: dict, ex_ids: dict, routine_
         except (ValidationError, TypeError, AttributeError):
             n["invalid"] += 1
             continue
-        if conn.execute("SELECT 1 FROM workout_reminders WHERE user_id = ? AND exercise_id IS ? AND routine_id IS ?"
-                        " AND at_time = ? AND days = ?", (user_id, m.exercise_id, m.routine_id, m.at_time,
-                                                          "".join(map(str, m.days)))).fetchone():
+        row = conn.execute("SELECT id FROM workout_reminders WHERE user_id = ? AND exercise_id IS ? AND routine_id IS ?"
+                           " AND at_time = ? AND days = ?", (user_id, m.exercise_id, m.routine_id, m.at_time,
+                                                             "".join(map(str, m.days)))).fetchone()
+        if row:
+            rid = row[0]
             n["skipped"] += 1
-            continue
-        conn.execute("INSERT INTO workout_reminders (user_id, exercise_id, routine_id, days, at_time, tz,"
-                     " weekly_goal, active) VALUES (?,?,?,?,?,?,?,?)",
-                     (user_id, m.exercise_id, m.routine_id, "".join(map(str, m.days)), m.at_time,
-                      _tz(r.get("tz")), m.weekly_goal, 0 if r.get("active") is False else 1))
-        n["added"] += 1
+        else:
+            rid = conn.execute("INSERT INTO workout_reminders (user_id, exercise_id, routine_id, days, at_time, tz,"
+                               " weekly_goal, active) VALUES (?,?,?,?,?,?,?,?)",
+                               (user_id, m.exercise_id, m.routine_id, "".join(map(str, m.days)), m.at_time,
+                                _tz(r.get("tz")), m.weekly_goal, 0 if r.get("active") is False else 1)).lastrowid
+            n["added"] += 1
+        for day in r.get("skipped") if isinstance(r.get("skipped"), list) else []:
+            if isinstance(day, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", day):
+                conn.execute("INSERT OR IGNORE INTO workout_reminder_skips (reminder_id, day) VALUES (?, ?)",
+                             (rid, day))
 
 
 def _restore_routines(conn, user_id: int, rows, n: dict, ex_ids: dict) -> dict:

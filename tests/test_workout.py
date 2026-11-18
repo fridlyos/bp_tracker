@@ -548,3 +548,51 @@ def test_exercise_with_several_reminders_links_out():
     with db.connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM workout_reminders WHERE exercise_id = ?", (ex["id"],)).fetchone()[0] == 2
     assert f'value="e:{ex["id"]}" selected' in c.get(f"/workout/reminders/new?target=e:{ex['id']}").text
+
+
+def test_skip_todays_workout(monkeypatch):
+    from datetime import datetime, timezone
+    from app import push
+    from app.modules.workout import service
+    c = _user("America/New_York")
+    ws = _exercise(c, "Wall sit", track_reps=False, track_weight=False)
+    every = [str(d) for d in range(7)]
+    c.post("/workout/reminders", data={"target": f"e:{ws['id']}", "days": every, "at_time": "23:59",
+                                       "weekly_goal": "4"})
+    with db.connect() as conn:
+        rid = str(conn.execute("SELECT id FROM workout_reminders WHERE exercise_id = ?", (ws["id"],)).fetchone()[0])
+    home = c.get("/workout").text
+    assert f'action="/workout/reminders/{rid}/skip"' in home and ">Skip<" in home and ">Start<" in home
+
+    c.post(f"/workout/reminders/{rid}/skip")
+    home = c.get("/workout").text
+    assert "Skipped today" in home and ">Undo<" in home and ">Start<" not in home
+    assert 'class="skip"' in c.get("/workout/reminders").text
+
+    # a skipped day sends no push and doesn't count toward the goal
+    with db.connect() as conn:
+        uid = conn.execute("SELECT id FROM users WHERE username = ?", (c.username,)).fetchone()[0]
+        today = service._local(datetime.now(timezone.utc), "America/New_York").date()
+        rem = service.get_reminder(conn, uid, int(rid))
+        st = service.reminder_status(conn, rem, today)
+        assert st["skipped_today"] and st["done_week"] == 0
+        conn.execute("UPDATE workout_reminders SET active = 0 WHERE id != ?", (int(rid),))
+        conn.commit()
+        sent = []
+        monkeypatch.setattr(push, "send_to_user", lambda *a: sent.append(a) or 1)
+        # 23:59 New York today, as UTC
+        from zoneinfo import ZoneInfo
+        at = datetime.combine(today, datetime.strptime("23:59", "%H:%M").time(), ZoneInfo("America/New_York"))
+        service.send_reminders(conn, at.astimezone(timezone.utc))
+        assert sent == []
+
+    data = c.get("/backup/download").json()
+    assert data["workout_reminders"][0]["skipped"] == [today.isoformat()]
+
+    c.post(f"/workout/reminders/{rid}/skip", data={"undo": "1"})
+    home = c.get("/workout").text
+    assert "Skipped today" not in home and ">Start<" in home
+    other = _user()
+    assert other.post(f"/workout/reminders/{rid}/skip", follow_redirects=False).status_code == 303
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM workout_reminder_skips WHERE reminder_id = ?", (int(rid),)).fetchone()[0] == 0

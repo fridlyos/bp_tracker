@@ -13,15 +13,27 @@
   <div class="section-head"><h2>Today</h2><a href="/workout/reminders">Reminders</a></div>
   <ul class="entry-list due-list">
     {% for r in due %}
-    <li class="{{ 'due-done' if r.done_today else ('due-hl' if remind == r.id|string else '') }}">
+    <li class="{{ 'due-done' if r.done_today else ('due-skipped' if r.skipped_today else ('due-hl' if remind == r.id|string else '')) }}">
       <span class="entry-main">
         <span class="entry-name">{{ r.name }}</span>
-        <span class="entry-meta">{% if r.done_today %}✓ Done today{% else %}Due at {{ r.at_time }}{% endif %} · {{ r.done_week }}/{{ r.goal }} this week{% if r.goal_met and not r.done_today %} · goal met{% endif %}</span>
+        <span class="entry-meta">{% if r.done_today %}✓ Done today{% elif r.skipped_today %}Skipped today{% else %}Due at {{ r.at_time }}{% endif %} · {{ r.done_week }}/{{ r.goal }} this week{% if r.goal_met and not r.done_today %} · goal met{% endif %}</span>
       </span>
       {% if not r.done_today %}
-      <form method="post" action="/workout/reminders/{{ r.id }}/start" class="inline">
-        <button type="submit" class="compact due-start">Start</button>
-      </form>
+      <span class="due-actions">
+        {% if r.skipped_today %}
+        <form method="post" action="/workout/reminders/{{ r.id }}/skip" class="inline">
+          <input type="hidden" name="undo" value="1">
+          <button type="submit" class="secondary compact due-btn" aria-label="Undo skip for {{ r.name }}">Undo</button>
+        </form>
+        {% else %}
+        <form method="post" action="/workout/reminders/{{ r.id }}/skip" class="inline">
+          <button type="submit" class="secondary compact due-btn" aria-label="Skip {{ r.name }} today">Skip</button>
+        </form>
+        <form method="post" action="/workout/reminders/{{ r.id }}/start" class="inline">
+          <button type="submit" class="compact due-btn due-start" aria-label="Start {{ r.name }}">Start</button>
+        </form>
+        {% endif %}
+      </span>
       {% endif %}
     </li>
     {% endfor %}
