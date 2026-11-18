@@ -29,7 +29,7 @@ def test_tile_page_and_default_link():
     c = _user()
     assert 'href="/calories"' in c.get("/").text and 'aria-label="Calories"' in c.get("/").text
     page = c.get("/calories").text
-    assert f'href="{service.DEFAULT_URL}" target="_blank" rel="noopener"' in page
+    assert 'href="/calories/open" target="_blank" rel="noopener"' in page
     assert "Opens lose-weight-fridl.fly.dev" in page and "no workout yet today" in page
     anon = TestClient(app)
     assert anon.get("/calories", follow_redirects=False).headers["location"] == "/login"
@@ -39,13 +39,13 @@ def test_change_and_reset_link():
     c, other = _user(), _user()
     r = c.post("/calories/link", data={"url": "my-calories.example.com"}, follow_redirects=False)
     assert r.status_code == 303
-    assert 'href="https://my-calories.example.com"' in c.get("/calories").text
-    assert f'href="{service.DEFAULT_URL}"' in other.get("/calories").text  # per user
+    assert 'value="https://my-calories.example.com"' in c.get("/calories").text
+    assert f'value="{service.DEFAULT_URL}"' in other.get("/calories").text  # per user
     for bad in ("javascript:alert(1)", "ftp://x.com", "https:// spaced .com", ""):
         r = c.post("/calories/link", data={"url": bad})
         assert r.status_code == 422 and "Enter a web address" in r.text, bad
     c.post("/calories/link", data={"reset": "1"})
-    assert f'href="{service.DEFAULT_URL}"' in c.get("/calories").text
+    assert f'value="{service.DEFAULT_URL}"' in c.get("/calories").text
 
 
 def test_today_numbers_from_workout_and_weight():
@@ -71,4 +71,4 @@ def test_backup_link():
     assert data["calories_link"] == "https://cal.example.com"
     b = _user()
     b.post("/backup/restore", files={"file": ("b.json", io.BytesIO(json.dumps(data).encode()), "application/json")})
-    assert 'href="https://cal.example.com"' in b.get("/calories").text
+    assert 'value="https://cal.example.com"' in b.get("/calories").text

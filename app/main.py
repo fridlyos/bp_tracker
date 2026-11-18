@@ -26,6 +26,7 @@ from . import db, scheduler  # noqa: E402
 from .api import router as core_api_router  # noqa: E402
 from .modules import MODULES  # noqa: E402
 from .web import router as web_router  # noqa: E402
+from .sso import router as sso_router  # noqa: E402
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -74,6 +75,7 @@ for _module in MODULES:
         app.include_router(_router)
 app.include_router(core_api_router)
 app.include_router(web_router)
+app.include_router(sso_router)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 

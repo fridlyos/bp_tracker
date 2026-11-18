@@ -252,7 +252,7 @@ migration `0010_weight`) — body weight in lb or kg:
 Calories module (`app/modules/calories/`, `app/templates/calories/`,
 migration `0011_calories_link`) — a launcher tile linking out to the separate
 calorie counter app (repo `lose_weight`, Fly app `lose-weight-fridl`, its own
-login and data; nothing is synced):
+data; signs in with your My Apps account, see "Sign in with My Apps" below):
 - `/calories`: big "Open Calorie counter" button (`target="_blank"`,
   `rel="noopener"`), "Today in My Apps" tiles (workout kcal burned today via
   `workout.service.session_detail` kcal, latest weigh-in from Weight), and a
@@ -261,6 +261,21 @@ login and data; nothing is synced):
 - `service.clean_url`: http(s) only, adds https:// to a bare host, rejects
   other schemes (`javascript:`, `mailto:`, `data:`), bad ports, spaces.
 - Backup: `calories_link` (restored only into an account without one).
+- Sign in with My Apps (`app/sso.py`): My Apps is the sign-in for the
+  calorie counter. Ed25519 key generated on first use into `app_kv`
+  (`sso_private_pem`), public key at `GET /sso/key`. A pass = base64url(json
+  {iss "myapps", sub, u, aud = calorie host, iat, exp +120 s, jti}) + "." +
+  base64url(sig). `/calories/open` (the Open button) and
+  `GET /sso/authorize?return=…/sso/callback&next=` (the calorie counter's
+  "Sign in with My Apps"; anonymous → `/login?next=`) redirect to the
+  calorie counter's `/sso/callback?token=…` — only to the host of the user's
+  calorie link, only that path, https (http just for localhost/127.0.0.1).
+  `sso.supported(url)` checks `GET {url}/sso/ping` (cached 10 min); if not
+  supported, `/calories/open` falls back to a plain link. Login and its form
+  keep `?next=` (same-site paths only, `ui.safe_next`). The calorie counter
+  verifies passes, keeps used `jti`s, and links a My Apps account to one
+  calorie account once (its password / already signed in / new account) —
+  never by matching usernames.
 
 ## Adding a module
 

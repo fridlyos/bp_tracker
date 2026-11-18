@@ -18,6 +18,7 @@ from .modules import MODULES
 from .schemas import User
 from .ui import redirect as _to
 from .ui import render as _render
+from .ui import safe_next
 
 router = APIRouter()
 
@@ -68,17 +69,19 @@ def register_submit(request: Request, username: str = Form(...), password: str =
 
 
 @router.get("/login")
-def login_form(request: Request, username: str = Query(""),
+def login_form(request: Request, username: str = Query(""), next_: str = Query("", alias="next"),
                user: User | None = Depends(current_user)):
-    """Login form; ?username= prefills the field (used by admin's "Switch to")."""
+    """Login form; ?username= prefills the field (used by admin's "Switch to"),
+    ?next= is where to go after (same-site paths only, e.g. /sso/authorize)."""
     if user is not None:
-        return _to("/")
-    return _render(request, "login.html", None, {"error": None, "username": username})
+        return _to(safe_next(next_, "/"))
+    return _render(request, "login.html", None, {"error": None, "username": username,
+                                                 "next": safe_next(next_, "")})
 
 
 @router.post("/login")
 def login_submit(request: Request, username: str = Form(...), password: str = Form(...),
-                 conn=Depends(db.get_db)):
+                 next_: str = Form("", alias="next"), conn=Depends(db.get_db)):
     u = service.authenticate(conn, username.strip(), password)
     if u is None:
         # Personal app with a handful of accounts: saying which part was wrong
@@ -87,9 +90,10 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
         name = service.normalize_username(username)
         error = (f"Wrong password for “{name}”." if service.username_exists(conn, name)
                  else f"No account called “{name}”. Check the spelling, or register.")
-        return _render(request, "login.html", None, {"error": error, "username": name})
+        return _render(request, "login.html", None, {"error": error, "username": name,
+                                                     "next": safe_next(next_, "")})
     start_session(request, u)
-    return _to("/")
+    return _to(safe_next(next_, "/"))
 
 
 @router.post("/logout")

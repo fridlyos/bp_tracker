@@ -9,11 +9,12 @@
 
 <section class="panel cal-hero">
   <span class="cal-hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7.5c-1.6-1.6-4.6-1.8-6.2.3-1.7 2.3-.9 6.4 1.2 9.2 1.6 2.1 3 2.6 5 1.6 2 1 3.4.5 5-1.6 2.1-2.8 2.9-6.9 1.2-9.2-1.6-2.1-4.6-1.9-6.2-.3z"/><path d="M12 7.5c0-2 1-3.6 3-4.3"/></svg></span>
-  <a class="button-link primary wo-big cal-open" href="{{ url }}" target="_blank" rel="noopener">
+  <a class="button-link primary wo-big cal-open" href="/calories/open" target="_blank" rel="noopener">
     Open Calorie counter
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
   </a>
-  <p class="muted cal-host">Opens {{ host }} in a new window</p>
+  <p class="muted cal-host">Opens {{ host }} in a new window, signed in as you</p>
+  {% if refused %}<p class="error">That sign-in request didn't come from your calorie counter's address, so it was stopped.</p>{% endif %}
 </section>
 
 <h2 class="sub-head">Today in My Apps <span class="muted">for logging</span></h2>
@@ -45,6 +46,6 @@
     <button type="submit" class="link-button">Use the default ({{ default }})</button>
   </form>
   {% endif %}
-  <p class="muted wo-note">Signing in to the calorie counter happens there; this app only links to it.</p>
+  <p class="muted wo-note">Opening it signs you in with your My Apps account. Sign-in passes only ever go to this address.</p>
 </details>
 {% endblock %}

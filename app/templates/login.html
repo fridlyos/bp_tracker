@@ -9,7 +9,9 @@
 
 <section class="panel">
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if next and next.startswith("/sso/") %}<p class="tag">Sign in to continue to your calorie counter.</p>{% endif %}
   <form method="post" action="/login">
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
     <label>Username <input name="username" autocomplete="username" required
                            autocapitalize="none" autocorrect="off" spellcheck="false"
                            value="{{ username or '' }}"{% if not username %} autofocus{% endif %}></label>
