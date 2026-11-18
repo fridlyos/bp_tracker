@@ -3,8 +3,9 @@
 <div class="page-head">
   <div>
     <h1>{% if is_today %}Today{% else %}{{ day.strftime("%A, %B %-d") }}{% endif %}</h1>
-    <p class="page-subtitle">{% if is_today %}{{ now.strftime("%A, %B %-d") }}{% else %}Filling in a past day{% endif %} · <a href="/meds/history">History</a></p>
+    <p class="page-subtitle">{% if is_today %}{{ now.strftime("%A, %B %-d") }}{% else %}Filling in a past day{% endif %}</p>
   </div>
+  <a class="pill-link" href="/meds/history">History<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
 </div>
 {# big day switcher: ‹ previous | date picker | next ›; next is a disabled
    placeholder on today so the bar never shifts under the thumb #}

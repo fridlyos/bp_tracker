@@ -2,8 +2,9 @@
 {% block content %}
 <div class="page-head">
   <div>
+    <a class="back-link" href="/meds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Today</a>
     <h1>History</h1>
-    <p class="page-subtitle"><a href="/meds">← Today</a> · doses marked in the last 30 days.</p>
+    <p class="page-subtitle">Doses marked in the last 30 days.</p>
   </div>
   <form method="get" action="/meds" class="inline" aria-label="Fill in a day">
     <input type="date" name="day" max="{{ today }}" value="{{ today }}" aria-label="Day to fill in" required>
@@ -16,7 +17,7 @@
   <div class="section-head">
     <h2>{{ day }}
       <span class="muted">({{ items|selectattr("status", "equalto", "taken")|list|length }} taken{% set sk = items|selectattr("status", "equalto", "skipped")|list|length %}{% if sk %}, {{ sk }} skipped{% endif %})</span></h2>
-    <a href="/meds?day={{ day }}" class="secondary-link">Edit</a>
+    <a href="/meds?day={{ day }}" class="pill-link">Edit<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a>
   </div>
   <ul class="entry-list dose-list">
     {% for d in items %}

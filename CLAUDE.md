@@ -213,6 +213,10 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   `.pill-link` (section-head / "All workouts" links), `.quick-links` tiles on
   Workout home (Routines / Reminders / Settings); other links in workout
   pages are styled via `body.mod-workout` (base.html adds `mod-<key>`).
+  Same pattern app-wide: Meds Today "History" pill (top-right of
+  `.page-head`, stays there on phones), Meds History / form back chips and
+  per-day "Edit" pill, BP Trends day-detail "History" pill; plain
+  `main a:not([class])` links use the theme colour, underline on hover.
 - Backup: `workout_exercises` + nested `workout_sessions` (exercises by name,
   sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`),
   `workout_routines` (by name, items by exercise name), `workout_settings`

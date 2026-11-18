@@ -712,3 +712,12 @@ button.secondary:hover, a.button-link:not(.primary):hover { background: var(--bt
 .wo-ex.is-current { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary), var(--card-shadow); }
 .measure-opt input:checked + span { box-shadow: inset 0 0 0 1px var(--primary), var(--card-shadow); }
 .app-icon-img { box-shadow: var(--btn-shadow); }
+
+
+/* links app-wide: pills in page heads stay top-right on phones; plain links match the theme */
+.page-head > .pill-link { margin-top: .1rem; }
+@media (max-width: 640px) {
+  .page-head:has(> .pill-link) { flex-direction: row; align-items: flex-start; }
+}
+main a:not([class]) { color: var(--primary); font-weight: 600; text-decoration: none; }
+main a:not([class]):hover { text-decoration: underline; text-underline-offset: 3px; }
