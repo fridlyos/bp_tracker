@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="viz-root">
+<div class="page-head">
+  <div>
+    <h1>Trends</h1>
+    <p class="page-subtitle" id="range-label">&nbsp;</p>
+  </div>
+</div>
+
+<div class="range-row">
+  <div class="range-tabs" role="group" aria-label="Time range">
+    <button type="button" data-range="week">Week</button>
+    <button type="button" data-range="month">Month</button>
+    <button type="button" data-range="3m">3 months</button>
+    <button type="button" data-range="year">Year</button>
+    <button type="button" data-range="all">All</button>
+  </div>
+</div>
+
+<div class="stat-row wt-stats" id="tiles">
+  <div class="stat"><span class="stat-label">Latest</span><span class="stat-value" data-tile="latest">–</span><span class="stat-unit">{{ unit }}</span></div>
+  <div class="stat"><span class="stat-label">Change</span><span class="stat-value" data-tile="change">–</span><span class="stat-unit">{{ unit }} in range</span></div>
+  <div class="stat"><span class="stat-label">Low – high</span><span class="stat-value wt-range" data-tile="lowhigh">–</span><span class="stat-unit">{{ unit }}</span></div>
+  <div class="stat"><span class="stat-label">Days logged</span><span class="stat-value" data-tile="days">–</span><span class="stat-unit">in range</span></div>
+</div>
+
+<section class="panel" id="empty" hidden>
+  <p class="muted">No weigh-ins in this range. <a href="/weight">Add one</a>.</p>
+</section>
+
+<div id="charts" hidden>
+  <section class="panel chart-card">
+    <div class="chart-head">
+      <h2>Weight <span class="muted">{{ unit }}, daily</span></h2>
+      <div class="chart-legend">
+        <span><i class="dot-key" style="background: var(--s-1)"></i>Daily</span>
+        <span><i class="line-key" style="background: var(--s-2)"></i>7-day average</span>
+        <span id="goal-key" hidden><i class="line-key line-key-dash" style="color: var(--viz-text-2)"></i>Goal</span>
+      </div>
+    </div>
+    <div class="chart-box chart-box-tall"><canvas id="weight-chart" role="img"
+      aria-label="Daily weight and 7-day average. Values are in the table below."></canvas></div>
+    <p class="muted chart-hint">Several weigh-ins on one day count as their average. The 7-day average smooths out day-to-day water swings.</p>
+  </section>
+
+  <details class="panel collapse">
+    <summary><h2>Table</h2></summary>
+    <div class="table-wrap">
+      <table class="report-table">
+        <thead><tr><th>Day</th><th>Weight</th><th>7-day avg</th><th>vs. day before</th></tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </details>
+</div>
+</div>
+
+<script>
+(function () {
+  const viz = document.querySelector(".viz-root");
+  const $ = (id) => document.getElementById(id);
+  const css = (n) => getComputedStyle(viz).getPropertyValue(n).trim();
+  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  const LABEL = { week: "last 7 days", month: "last 30 days", "3m": "last 3 months", year: "last year", all: "all time" };
+  let range = "month";
+  try { range = localStorage.getItem("weight-range") || "month"; } catch (e) {}
+  if (!(range in LABEL)) range = "month";
+  let chart = null, last = null;
+
+  const parseDay = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+  const fmtDay = (iso) => parseDay(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const f1 = (v) => (v == null ? "–" : v.toFixed(1));
+  const signed = (v) => (v == null ? "–" : v > 0 ? "+" + v.toFixed(1) : v < 0 ? "−" + (-v).toFixed(1) : "±0.0");
+
+  const crosshair = {
+    id: "crosshair",
+    afterDatasetsDraw(c) {
+      const a = c.tooltip && c.tooltip.getActiveElements();
+      if (!a || !a.length) return;
+      const x = a[0].element.x, { top, bottom } = c.chartArea, ctx = c.ctx;
+      ctx.save(); ctx.strokeStyle = css("--viz-axis"); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke(); ctx.restore();
+    },
+  };
+  // goal reference line + value at the end of the average line (text ink, not series colour)
+  const annotate = {
+    id: "annotate",
+    afterDatasetsDraw(c) {
+      const ctx = c.ctx, { left, right, top, bottom } = c.chartArea;
+      ctx.save();
+      ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.textBaseline = "middle";
+      if (last && last.goal != null) {
+        const y = c.scales.y.getPixelForValue(last.goal);
+        if (y >= top && y <= bottom) {
+          ctx.strokeStyle = css("--viz-text-2"); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle = css("--viz-text-2"); ctx.textAlign = "left";
+          ctx.fillText("Goal " + f1(last.goal), left + 4, y - 9);
+        }
+      }
+      const ds = c.data.datasets[1], meta = c.getDatasetMeta(1);
+      for (let j = ds.data.length - 1; j >= 0; j--) {
+        if (ds.data[j] == null) continue;
+        ctx.fillStyle = css("--viz-text-1"); ctx.textAlign = "left";
+        ctx.fillText(f1(ds.data[j]), meta.data[j].x + 8, meta.data[j].y);
+        break;
+      }
+      ctx.restore();
+    },
+  };
+
+  function render(data) {
+    last = data;
+    if (chart) chart.destroy();
+    const pts = data.points;
+    $("range-label").textContent = `${pts.length} day${pts.length === 1 ? "" : "s"} with a weigh-in, ${LABEL[data.range]}`;
+    $("charts").hidden = !pts.length;
+    $("empty").hidden = !!pts.length;
+    const t = data.tiles;
+    document.querySelector('[data-tile="latest"]').textContent = f1(t.latest);
+    document.querySelector('[data-tile="change"]').textContent = signed(t.change);
+    document.querySelector('[data-tile="lowhigh"]').textContent = t.low == null ? "–" : `${f1(t.low)} – ${f1(t.high)}`;
+    document.querySelector('[data-tile="days"]').textContent = String(t.days);
+    $("goal-key").hidden = data.goal == null;
+    if (!pts.length) return;
+    const dense = pts.length > 60;
+    const vals = pts.map((p) => p.weight).concat(data.goal != null ? [data.goal] : []);
+    const lo = Math.min(...vals), hi = Math.max(...vals), pad = Math.max(1, (hi - lo) * 0.12);
+    chart = new Chart($("weight-chart"), {
+      type: "line",
+      data: {
+        labels: pts.map((p) => fmtDay(p.date)),
+        datasets: [
+          { label: "Daily", data: pts.map((p) => p.weight), borderColor: css("--s-1"), backgroundColor: css("--s-1"),
+            borderWidth: 1, showLine: !dense, tension: 0, pointRadius: dense ? 2 : 4, pointHoverRadius: 6,
+            pointHitRadius: 12, pointBorderColor: css("--viz-surface"), pointBorderWidth: 2,
+            borderColor: css("--s-1") + "66" },
+          { label: "7-day average", data: pts.map((p) => p.avg7), borderColor: css("--s-2"),
+            backgroundColor: css("--s-2"), borderWidth: 2.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 5,
+            pointHitRadius: 12, borderCapStyle: "round", borderJoinStyle: "round" },
+        ],
+      },
+      plugins: [crosshair, annotate],
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { right: 44, top: 8 } },
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: css("--viz-tooltip"), borderColor: css("--viz-axis"), borderWidth: 1,
+            titleColor: css("--viz-text-2"), bodyColor: css("--viz-text-1"), padding: 10, usePointStyle: true,
+            callbacks: {
+              title: (items) => fmtDay(pts[items[0].dataIndex].date),
+              label: (c) => ` ${f1(c.parsed.y)} ${data.unit}  ${c.dataset.label}`,
+              labelColor: (c) => ({ borderColor: c.dataset.backgroundColor, backgroundColor: c.dataset.backgroundColor }),
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, border: { color: css("--viz-axis") },
+               ticks: { color: css("--viz-muted"), maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+          y: { suggestedMin: lo - pad, suggestedMax: hi + pad, grid: { color: css("--viz-grid") },
+               border: { display: false }, ticks: { color: css("--viz-muted"), maxTicksLimit: 6 } },
+        },
+      },
+    });
+    const body = $("table-body");
+    body.replaceChildren();
+    pts.slice().reverse().forEach((p, i, arr) => {
+      const tr = document.createElement("tr");
+      const prev = arr[i + 1];
+      [fmtDay(p.date), f1(p.weight), f1(p.avg7), prev ? signed(p.weight - prev.weight) : "–"].forEach((v, k) => {
+        const td = document.createElement(k ? "td" : "th");
+        if (!k) td.scope = "row";
+        td.textContent = v;
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  async function load() {
+    document.querySelectorAll("[data-range]").forEach((b) => {
+      const on = b.dataset.range === range;
+      b.setAttribute("aria-pressed", String(on));
+      b.classList.toggle("secondary", !on);
+    });
+    const r = await fetch("/api/weight/stats?range=" + range);
+    if (r.status === 401) { location.href = "/login"; return; }
+    if (r.ok) render(await r.json());
+  }
+  document.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => {
+    range = b.dataset.range;
+    try { localStorage.setItem("weight-range", range); } catch (e) {}
+    load();
+  }));
+  new MutationObserver(() => last && render(last))
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  load();
+})();
+</script>
+{% endblock %}

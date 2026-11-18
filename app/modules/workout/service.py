@@ -10,7 +10,7 @@ Derived, never stored:
 - volume = reps x weight
 Every query filters by the acting user's id.
 """
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from .schemas import Exercise, ExerciseIn, SetIn, SetUpdate, tempo_seconds
 
@@ -246,7 +246,7 @@ def session_detail(conn, user_id: int, session_id: int) -> dict | None:
     all_sets = [s for e in exercises for s in e["sets"]]
     end = sess["ended_at"] or (max(s["ended_at"] for s in all_sets) if all_sets else None)
     duration = max(0, _secs(sess["started_at"], end)) if end else 0
-    estimate = estimate_calories(get_settings(conn, user_id), duration)
+    estimate = estimate_calories(body_settings(conn, user_id, sess["started_at"][:10]), duration)
     routine = conn.execute("SELECT name FROM workout_routines WHERE id = ? AND user_id = ?",
                            (sess["routine_id"], user_id)).fetchone() if sess["routine_id"] else None
     return {"id": sess["id"], "started_at": sess["started_at"], "ended_at": sess["ended_at"],
@@ -450,7 +450,6 @@ def weekly(conn, user_id: int, today, weeks: int = 8) -> list[dict]:
     monday = today - _td(days=today.weekday())
     start = monday - _td(weeks=weeks - 1)
     rows = {}
-    settings = get_settings(conn, user_id)
     for s in conn.execute("SELECT id, started_at, ended_at, calories FROM workout_sessions WHERE user_id = ?"
                           " AND started_at >= ?", (user_id, start.isoformat())).fetchall():
         d = _date.fromisoformat(s["started_at"][:10])
@@ -467,7 +466,8 @@ def weekly(conn, user_id: int, today, weeks: int = 8) -> list[dict]:
         r["workouts"] += 1
         r["sets"] += n_sets
         r["time_sec"] += secs
-        kcal = s["calories"] if s["calories"] is not None else estimate_calories(settings, secs)
+        kcal = s["calories"] if s["calories"] is not None else estimate_calories(
+            body_settings(conn, user_id, s["started_at"][:10]), secs)
         if kcal is not None:
             r["kcal"] = (r["kcal"] or 0) + kcal
     return [{"week": (monday - _td(weeks=i)).isoformat(),
@@ -497,6 +497,17 @@ def save_settings(conn, user_id: int, s) -> None:
                  " ON CONFLICT(user_id) DO UPDATE SET body_weight=excluded.body_weight, unit=excluded.unit,"
                  " intensity=excluded.intensity", (user_id, s.body_weight, s.unit, s.intensity))
     conn.commit()
+
+
+def body_settings(conn, user_id: int, day: str | None = None) -> dict:
+    """Workout settings, with body weight taken from the Weight module's
+    latest weigh-in on or before `day` (YYYY-MM-DD) when there is one."""
+    from ..weight import service as weight
+    s = get_settings(conn, user_id)
+    kg = weight.latest_kg(conn, user_id, date.fromisoformat(day) if day else None)
+    if kg is not None:
+        s = s | {"body_weight": kg, "unit": "kg", "from_weigh_in": True}
+    return s
 
 
 def estimate_calories(settings: dict, duration_sec: int) -> int | None:

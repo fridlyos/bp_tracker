@@ -1,0 +1,6 @@
+{% macro w(v) -%}{{ ("%.1f"|format(v)) if v is not none else "–" }}{%- endmacro %}
+{% macro signed(v) -%}
+{%- if v is none %}–{% elif v > 0 %}+{{ "%.1f"|format(v) }}{% elif v < 0 %}−{{ "%.1f"|format(-v) }}{% else %}±0.0{% endif -%}
+{%- endmacro %}
+{# kg -> display unit, one decimal #}
+{% macro kg_to(kg, unit) -%}{{ "%.1f"|format(kg * 2.20462 if unit == "lb" else kg) }}{%- endmacro %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "weight/_fmt.html" import w %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="page-subtitle">Units, goal and reminders.</p>
+  </div>
+</div>
+
+<section class="panel">
+  <h2>Units &amp; goal</h2>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if saved %}<p class="tag">Saved.</p>{% endif %}
+  <form method="post" action="/weight/settings">
+    <fieldset class="kind-choice">
+      <legend>Show weights in</legend>
+      {% for u, label in [("lb", "Pounds (lb)"), ("kg", "Kilograms (kg)")] %}
+      <label class="kind-option"><input type="radio" name="unit" value="{{ u }}"{% if s.unit == u %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <label>Goal weight <span class="muted">(optional, in the unit above)</span>
+      <input type="number" name="goal" inputmode="decimal" step="0.1" min="20" max="900"
+             value="{% if s.goal is string %}{{ s.goal }}{% elif s.goal is not none %}{{ w(s.goal) }}{% endif %}" placeholder="e.g. 175">
+    </label>
+    <p class="muted wo-note">Every weigh-in is kept exactly, whichever unit you typed it in; this only changes how weights are shown.</p>
+    <div class="dialog-actions"><button type="submit">Save</button></div>
+  </form>
+</section>
+
+<section class="panel" id="reminders">
+  <h2>Reminders</h2>
+  <p class="muted">A notification to weigh in, every day at these times. Not sent once you've logged today.</p>
+  <div class="push-device" data-push data-devices="{{ devices }}">
+    <p class="push-status" data-push-status>Checking notifications on this device…</p>
+    <div class="push-actions">
+      <button type="button" data-push-enable hidden>Enable notifications on this device</button>
+      <button type="button" class="secondary" data-push-test hidden>Send test</button>
+      <button type="button" class="secondary" data-push-disable hidden>Turn off on this device</button>
+    </div>
+  </div>
+  {% if reminder_error %}<p class="error">{{ reminder_error }}</p>{% endif %}
+  {% if reminders %}
+  <ul class="entry-list reminder-list">
+    {% for r in reminders %}
+    <li>
+      <span class="entry-main">
+        <span class="entry-name bp-value">{{ r.at_time }}</span>
+        {% if r.tz != tz %}<span class="entry-meta">{{ r.tz }} time</span>{% endif %}
+      </span>
+      <form method="post" action="/weight/reminders/{{ r.id }}/delete" class="inline">
+        <button type="submit" class="x-delete" aria-label="Delete reminder at {{ r.at_time }}" title="Delete">&times;</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No reminders yet.</p>
+  {% endif %}
+  {% if reminders|length < max_reminders %}
+  <form method="post" action="/weight/reminders" class="row reminder-add">
+    <label>Remind me at <input type="time" name="at_time" required value="07:00"></label>
+    <button type="submit" class="secondary">Add reminder</button>
+  </form>
+  {% endif %}
+</section>
+<script src="{{ static_url('push.js') }}" defer></script>
+{% endblock %}

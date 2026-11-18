@@ -1,0 +1,17 @@
+{# expects: items (list[Entry]), unit (display unit), next (return path after delete) #}
+{% from "weight/_fmt.html" import kg_to %}
+<ul class="entry-list reading-list">
+  {% for e in items %}
+  <li>
+    <span class="entry-main">
+      <span class="entry-name bp-value">{{ kg_to(e.kg, unit) }} <span class="muted wt-unit">{{ unit }}</span></span>
+      <span class="entry-meta">{{ e.taken_at[11:16] }}{% if e.unit != unit %} · entered {{ kg_to(e.kg, e.unit) }} {{ e.unit }}{% endif %}{% if e.note %} · {{ e.note }}{% endif %}</span>
+    </span>
+    <form method="post" action="/weight/entries/{{ e.id }}/delete" class="inline"
+          data-confirm="Delete the weigh-in of {{ kg_to(e.kg, unit) }} {{ unit }} at {{ e.taken_at[11:16] }}?">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="x-delete" aria-label="Delete weigh-in" title="Delete">&times;</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>

@@ -721,3 +721,20 @@ button.secondary:hover, a.button-link:not(.primary):hover { background: var(--bt
 }
 main a:not([class]) { color: var(--primary); font-weight: 600; text-decoration: none; }
 main a:not([class]):hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* --- weight module */
+.wt-stats { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }
+.wt-stats .wt-range { font-size: 1.15rem; }
+.wt-unit { font-size: .8em; font-weight: 600; }
+.wt-input-row { display: flex; align-items: flex-end; gap: .6rem; }
+.wt-weight { flex: 1 1 auto; }
+.wt-weight input { font-size: 1.4rem; font-weight: 700; min-height: 3.2rem; font-variant-numeric: tabular-nums; }
+.unit-toggle { display: inline-flex; padding: 3px; margin: 0; border: none; border-radius: 12px; background: var(--btn2-bg);
+  flex: 0 0 auto; }
+.unit-toggle label { display: block; margin: 0; }
+.unit-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.unit-toggle span { display: grid; place-items: center; min-width: 3.2rem; min-height: calc(3.2rem - 6px);
+  border-radius: 9px; font-weight: 700; color: var(--btn2-text); cursor: pointer; }
+.unit-toggle input:checked + span { background: var(--surface); color: var(--primary); box-shadow: var(--card-shadow); }
+.unit-toggle input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 1px; }
+.dot-key { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: .35rem; vertical-align: .05em; }

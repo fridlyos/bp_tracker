@@ -390,12 +390,23 @@ def session_calories(session_id: int, calories: str = Form(""), conn=Depends(db.
     return redirect(f"/workout/session/{session_id}")
 
 
+def _weigh_in(conn, user_id: int) -> dict | None:
+    """Latest weigh-in from the Weight module, in its display unit (or None)."""
+    from ..weight import service as weight
+    kg = weight.latest_kg(conn, user_id)
+    if kg is None:
+        return None
+    unit = weight.get_settings(conn, user_id)["unit"]
+    return {"value": weight.disp(kg, unit), "unit": unit}
+
+
 @router.get("/settings")
 def settings_page(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
     return render(request, "workout/settings.html", user, {
-        "s": service.get_settings(conn, user.id), "met": service.MET, "error": None})
+        "s": service.get_settings(conn, user.id), "met": service.MET, "error": None,
+        "weigh_in": _weigh_in(conn, user.id)})
 
 
 @router.post("/settings")
@@ -409,7 +420,7 @@ def settings_save(request: Request, body_weight: str = Form(""), unit: str = For
         service.save_settings(conn, user.id, SettingsIn(**form))
     except ValidationError as err:
         resp = render(request, "workout/settings.html", user, {
-            "s": form, "met": service.MET, "error": _error_text(err)})
+            "s": form, "met": service.MET, "error": _error_text(err), "weigh_in": _weigh_in(conn, user.id)})
         resp.status_code = 422
         return resp
     return redirect("/workout")

@@ -183,8 +183,9 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   `/workout/settings`; estimate = MET × kg × hours (`service.MET`: light 3.5,
   moderate 5.0, vigorous 6.0 — 2024 Compendium resistance-training codes);
   `workout_sessions.calories` overrides it (blank = estimate); `kcal` in
-  session detail, history cards, home week tile and weekly table. Not synced
-  to the calorie tracker (lose_weight).
+  session detail, history cards, home week tile and weekly table. Body
+  weight comes from the latest weigh-in in the Weight module when there is
+  one (settings value = fallback). Not synced to the calorie tracker (lose_weight).
 - Reminders (`0007_workout_reminders`, `/workout/reminders`): for an exercise
   or a routine (exactly one), on chosen weekdays (`days` = digits, Mon=0) at
   `HH:MM` in the zone the browser had (tz_tables), optional `weekly_goal`
@@ -223,6 +224,30 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   (restored only into an account without settings), session `calories` /
   `routine` name / per-exercise targets, `workout_reminders` (by target name,
   matched on target + time + days, with their `skipped` days).
+
+Weight module (`app/modules/weight/`, templates in `app/templates/weight/`,
+migration `0010_weight`) — body weight in lb or kg:
+- Tables: `weight_entries` (`taken_at` local 'YYYY-MM-DDTHH:MM', `kg`
+  canonical, `unit` as typed, note), `weight_settings` (display `unit`,
+  `goal_kg`), `weight_reminders` (daily `HH:MM` + tz, `last_reminded`).
+- Validation `schemas.EntryIn` / `SettingsIn`: 20–400 kg (≈44–882 lb),
+  converted with `LB_PER_KG = 2.20462`; web form accepts "181,4".
+- Pages: Today `/weight` (summary tiles: latest, 7-/30-day change vs the
+  latest day ≥ n days back, distance to goal; add form with lb/kg segmented
+  toggle that converts a typed number; today's list), Trends
+  `/weight/trends` (Week/Month/3 months/Year/All from
+  `/api/weight/stats?range=`; daily average dots `--s-1` + 7-day average line
+  `--s-2`, goal as a dashed neutral reference line, one axis, table view),
+  History (by day, delete), Settings (unit, goal, reminders + push block).
+- Like BP, several weigh-ins on a day count as their average; the 7-day
+  average at a day = mean of daily values in the 7 days ending that day.
+- Job `service.send_reminders`: once per local day per reminder, ≤30 min
+  late, not sent once there's a weigh-in today. Push opens `/weight`.
+- Workout calorie estimate uses `weight.service.latest_kg` (latest weigh-in
+  on or before the workout day) via `workout.service.body_settings`, falling
+  back to the body weight in Workout settings.
+- Backup: `weight_entries` (matched on time + kg), `weight_settings` (only
+  into an account without), `weight_reminders` (by time).
 
 ## Adding a module
 

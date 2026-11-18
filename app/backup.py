@@ -47,6 +47,10 @@ def export_user(conn, user_id: int, username: str) -> dict:
                        " notes, target_duration_sec, active FROM workout_exercises WHERE user_id = ? ORDER BY id")],
         "workout_sessions": _export_sessions(conn, user_id),
         "workout_routines": _export_routines(conn, user_id),
+        "weight_entries": q("SELECT taken_at, kg, unit, note FROM weight_entries WHERE user_id = ?"
+                            " ORDER BY taken_at, id"),
+        "weight_settings": next(iter(q("SELECT unit, goal_kg FROM weight_settings WHERE user_id = ?")), None),
+        "weight_reminders": q("SELECT at_time, tz FROM weight_reminders WHERE user_id = ? ORDER BY at_time"),
         "workout_reminders": [
             {"exercise": r["name"] if r["kind"] == "exercise" else None,
              "routine": r["name"] if r["kind"] == "routine" else None,
@@ -191,6 +195,7 @@ def restore_user(conn, user_id: int, data) -> dict:
         except (ValidationError, TypeError):
             n["invalid"] += 1
     _restore_workout(conn, user_id, rows, n)
+    _restore_weight(conn, user_id, data, rows, n)
     conn.commit()
     return n
 
@@ -290,6 +295,45 @@ def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
                     (uid, user_id, se_id, v.reps, v.weight, v.unit, v.started_at.isoformat(timespec="seconds"),
                      v.ended_at.isoformat(timespec="seconds"), v.rpe, v.tempo, v.note))
                 n["added"] += 1
+
+
+_MINUTE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
+
+
+def _restore_weight(conn, user_id: int, data: dict, rows, n: dict) -> None:
+    """Weigh-ins (matched on time + weight), settings (only into an account
+    without them), reminders (by time)."""
+    from .modules.weight.schemas import MAX_KG, MIN_KG
+    for e in rows("weight_entries"):
+        kg, t, unit = e.get("kg"), e.get("taken_at"), e.get("unit")
+        if not (isinstance(kg, (int, float)) and not isinstance(kg, bool) and MIN_KG <= kg <= MAX_KG
+                and isinstance(t, str) and _MINUTE.match(t) and unit in ("lb", "kg")):
+            n["invalid"] += 1
+            continue
+        if conn.execute("SELECT 1 FROM weight_entries WHERE user_id = ? AND taken_at = ? AND ABS(kg - ?) < 0.001",
+                        (user_id, t, kg)).fetchone():
+            n["skipped"] += 1
+            continue
+        note = e.get("note") if isinstance(e.get("note"), str) else None
+        conn.execute("INSERT INTO weight_entries (user_id, taken_at, kg, unit, note) VALUES (?,?,?,?,?)",
+                     (user_id, t, round(kg, 3), unit, note[:300] if note else None))
+        n["added"] += 1
+    ws = data.get("weight_settings")
+    if isinstance(ws, dict) and ws.get("unit") in ("lb", "kg") and not conn.execute(
+            "SELECT 1 FROM weight_settings WHERE user_id = ?", (user_id,)).fetchone():
+        goal = ws.get("goal_kg")
+        goal = goal if isinstance(goal, (int, float)) and not isinstance(goal, bool) and MIN_KG <= goal <= MAX_KG \
+            else None
+        conn.execute("INSERT INTO weight_settings (user_id, unit, goal_kg) VALUES (?,?,?)", (user_id, ws["unit"], goal))
+        n["added"] += 1
+    for r in rows("weight_reminders"):
+        at = r.get("at_time")
+        if not (isinstance(at, str) and re.match(r"^([01]\d|2[0-3]):[0-5]\d$", at)):
+            n["invalid"] += 1
+            continue
+        cur = conn.execute("INSERT OR IGNORE INTO weight_reminders (user_id, at_time, tz) VALUES (?,?,?)",
+                           (user_id, at, _tz(r.get("tz"))))
+        n["added" if cur.rowcount else "skipped"] += 1
 
 
 def _restore_reminders(conn, user_id: int, rows, n: dict, ex_ids: dict, routine_ids: dict) -> None:
