@@ -49,5 +49,6 @@ from .bp import MODULE as BP  # noqa: E402
 from .meds import MODULE as MEDS  # noqa: E402
 from .workout import MODULE as WORKOUT  # noqa: E402
 from .weight import MODULE as WEIGHT  # noqa: E402
+from .calories import MODULE as CALORIES  # noqa: E402
 
-MODULES: tuple[Module, ...] = (BP, MEDS, WORKOUT, WEIGHT)
+MODULES: tuple[Module, ...] = (BP, MEDS, WORKOUT, WEIGHT, CALORIES)

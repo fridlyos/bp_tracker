@@ -738,3 +738,16 @@ main a:not([class]):hover { text-decoration: underline; text-underline-offset: 3
 .unit-toggle input:checked + span { background: var(--surface); color: var(--primary); box-shadow: var(--card-shadow); }
 .unit-toggle input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 1px; }
 .dot-key { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: .35rem; vertical-align: .05em; }
+
+/* --- calories (link-out module) */
+.cal-hero { display: flex; flex-direction: column; align-items: center; gap: .7rem; padding: 1.4rem 1rem 1rem;
+  border: 1px solid var(--card-border); border-radius: 16px; background: var(--surface); box-shadow: var(--card-shadow); }
+.cal-hero-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 18px;
+  background: var(--btn2-bg); }
+.cal-hero-icon svg { width: 36px; height: 36px; fill: none; stroke: var(--primary); stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; }
+a.cal-open { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; text-decoration: none; }
+a.cal-open svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2;
+  stroke-linecap: round; stroke-linejoin: round; }
+.cal-host { margin: 0; font-size: .85rem; }
+a.stat { text-decoration: none; color: inherit; }

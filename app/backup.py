@@ -51,6 +51,7 @@ def export_user(conn, user_id: int, username: str) -> dict:
                             " ORDER BY taken_at, id"),
         "weight_settings": next(iter(q("SELECT unit, goal_kg FROM weight_settings WHERE user_id = ?")), None),
         "weight_reminders": q("SELECT at_time, tz FROM weight_reminders WHERE user_id = ? ORDER BY at_time"),
+        "calories_link": next((r["url"] for r in q("SELECT url FROM calories_settings WHERE user_id = ?")), None),
         "workout_reminders": [
             {"exercise": r["name"] if r["kind"] == "exercise" else None,
              "routine": r["name"] if r["kind"] == "routine" else None,
@@ -196,6 +197,16 @@ def restore_user(conn, user_id: int, data) -> dict:
             n["invalid"] += 1
     _restore_workout(conn, user_id, rows, n)
     _restore_weight(conn, user_id, data, rows, n)
+    link = data.get("calories_link")
+    if isinstance(link, str) and not conn.execute("SELECT 1 FROM calories_settings WHERE user_id = ?",
+                                                  (user_id,)).fetchone():
+        from .modules.calories import service as calories
+        try:  # only into an account that hasn't set its own link
+            conn.execute("INSERT INTO calories_settings (user_id, url) VALUES (?, ?)",
+                         (user_id, calories.clean_url(link)))
+            n["added"] += 1
+        except ValueError:
+            n["invalid"] += 1
     conn.commit()
     return n
 

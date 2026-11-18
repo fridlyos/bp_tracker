@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Calories</h1>
+    <p class="page-subtitle">Your calorie counter is its own app. Open it here.</p>
+  </div>
+</div>
+
+<section class="panel cal-hero">
+  <span class="cal-hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7.5c-1.6-1.6-4.6-1.8-6.2.3-1.7 2.3-.9 6.4 1.2 9.2 1.6 2.1 3 2.6 5 1.6 2 1 3.4.5 5-1.6 2.1-2.8 2.9-6.9 1.2-9.2-1.6-2.1-4.6-1.9-6.2-.3z"/><path d="M12 7.5c0-2 1-3.6 3-4.3"/></svg></span>
+  <a class="button-link primary wo-big cal-open" href="{{ url }}" target="_blank" rel="noopener">
+    Open Calorie counter
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+  </a>
+  <p class="muted cal-host">Opens {{ host }} in a new window</p>
+</section>
+
+<h2 class="sub-head">Today in My Apps <span class="muted">for logging</span></h2>
+<div class="stat-row wt-stats">
+  <a class="stat" href="/workout">
+    <span class="stat-label">Burned in workouts</span>
+    <span class="stat-value">{{ t.burned if t.burned is not none else "–" }}</span>
+    <span class="stat-unit">{% if t.burned is not none %}kcal · {{ t.workouts }} workout{{ "" if t.workouts == 1 else "s" }}{% elif t.workouts %}set body weight for an estimate{% else %}no workout yet today{% endif %}</span>
+  </a>
+  <a class="stat" href="/weight">
+    <span class="stat-label">Latest weight</span>
+    <span class="stat-value">{{ "%.1f"|format(t.weight) if t.weight is not none else "–" }}</span>
+    <span class="stat-unit">{% if t.weight is not none %}{{ t.weight_unit }} · {{ t.weight_day[5:]|replace("-", "/") }}{% else %}not logged yet{% endif %}</span>
+  </a>
+</div>
+
+<details class="panel collapse"{% if edit %} open{% endif %}>
+  <summary><h2>Calorie counter link</h2></summary>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/calories/link" class="row wo-after">
+    <label class="visually-hidden" for="cal-url">Web address</label>
+    <input id="cal-url" name="url" type="url" inputmode="url" autocomplete="url" maxlength="300" required
+           value="{{ typed if typed is defined else url }}">
+    <button type="submit" class="secondary">Save</button>
+  </form>
+  {% if not is_default %}
+  <form method="post" action="/calories/link" class="inline">
+    <input type="hidden" name="reset" value="1">
+    <button type="submit" class="link-button">Use the default ({{ default }})</button>
+  </form>
+  {% endif %}
+  <p class="muted wo-note">Signing in to the calorie counter happens there; this app only links to it.</p>
+</details>
+{% endblock %}

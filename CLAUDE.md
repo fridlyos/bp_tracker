@@ -249,6 +249,19 @@ migration `0010_weight`) — body weight in lb or kg:
 - Backup: `weight_entries` (matched on time + kg), `weight_settings` (only
   into an account without), `weight_reminders` (by time).
 
+Calories module (`app/modules/calories/`, `app/templates/calories/`,
+migration `0011_calories_link`) — a launcher tile linking out to the separate
+calorie counter app (repo `lose_weight`, Fly app `lose-weight-fridl`, its own
+login and data; nothing is synced):
+- `/calories`: big "Open Calorie counter" button (`target="_blank"`,
+  `rel="noopener"`), "Today in My Apps" tiles (workout kcal burned today via
+  `workout.service.session_detail` kcal, latest weigh-in from Weight), and a
+  per-user link (`calories_settings.url`, default
+  `service.DEFAULT_URL = https://lose-weight-fridl.fly.dev`; reset = delete).
+- `service.clean_url`: http(s) only, adds https:// to a bare host, rejects
+  other schemes (`javascript:`, `mailto:`, `data:`), bad ports, spaces.
+- Backup: `calories_link` (restored only into an account without one).
+
 ## Adding a module
 
 1. `app/modules/<key>/` with `web.py` (`APIRouter(prefix="/<key>")`),
