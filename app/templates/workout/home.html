@@ -10,7 +10,7 @@
 
 {% if due %}
 <section class="panel">
-  <div class="section-head"><h2>Today</h2><a href="/workout/reminders">Reminders</a></div>
+  <div class="section-head"><h2>Today</h2><a class="pill-link" href="/workout/reminders">Reminders<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a></div>
   <ul class="entry-list due-list">
     {% for r in due %}
     <li class="{{ 'due-done' if r.done_today else ('due-skipped' if r.skipped_today else ('due-hl' if remind == r.id|string else '')) }}">
@@ -52,7 +52,7 @@
 </form>
 {% if routines %}
 <section class="panel">
-  <div class="section-head"><h2>Start a routine</h2><a href="/workout/routines">Routines</a></div>
+  <div class="section-head"><h2>Start a routine</h2><a class="pill-link" href="/workout/routines">All routines<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a></div>
   <div class="rt-start">
     {% for r in routines %}
     <form method="post" action="/workout/routines/{{ r.id }}/start" class="inline">
@@ -81,7 +81,11 @@
     <span class="stat-unit">{% if settings.body_weight %}kcal{% else %}<a href="/workout/settings">set body weight</a>{% endif %}</span></div>
 </div>
 {% endif %}
-<p class="wo-links"><a href="/workout/routines">Routines</a> · <a href="/workout/reminders">Reminders</a> · <a href="/workout/settings">Settings</a></p>
+<nav class="quick-links" aria-label="More">
+  <a href="/workout/routines"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Routines</span></a>
+  <a href="/workout/reminders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span>Reminders</span></a>
+  <a href="/workout/settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 6.2l2.1 2.1M17.7 15.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 17.8l2.1-2.1M17.7 8.3l2.1-2.1"/></svg><span>Settings</span></a>
+</nav>
 
 {% if prs %}
 <section class="panel">
@@ -105,7 +109,7 @@
   <ul class="entry-list session-list">
     {% for s in recent %}{{ session_card(s) }}{% endfor %}
   </ul>
-  <p><a href="/workout/history">All workouts</a></p>
+  <p class="more-row"><a class="pill-link" href="/workout/history">All workouts<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></a></p>
 </section>
 {% endif %}
 {% endblock %}

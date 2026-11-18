@@ -30,7 +30,7 @@
   </script>
 {% block head %}{% endblock %}
 </head>
-<body class="{{ 'signed-in' if user else 'signed-out' }}{{ ' has-tabbar' if user and module }}">
+<body class="{{ 'signed-in' if user else 'signed-out' }}{{ ' has-tabbar' if user and module }}{{ ' mod-' ~ module.key if module }}">
   <header class="topbar">
     <div class="crumbs">
       <a class="brand" href="/">{{ APP_NAME }}</a>

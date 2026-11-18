@@ -3,8 +3,8 @@
 {% block content %}
 <div class="page-head">
   <div>
+    <a class="back-link" href="/workout/routines"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Routines</a>
     <h1>{{ "Edit routine" if edit else "New routine" }}</h1>
-    <p class="page-subtitle"><a href="/workout/routines">← Routines</a></p>
   </div>
 </div>
 {% if not exercises %}

@@ -2,8 +2,8 @@
 {% block content %}
 <div class="page-head">
   <div>
+    <a class="back-link" href="/workout/reminders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Reminders</a>
     <h1>{{ "Edit reminder" if edit else "New reminder" }}</h1>
-    <p class="page-subtitle"><a href="/workout/reminders">← Reminders</a></p>
   </div>
 </div>
 {% if not exercises and not routines %}

@@ -203,6 +203,10 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   create/update it (validated before anything is saved), unticked = delete
   it; with 2+ it links to them instead. `/workout/reminders/new?target=e:<id>`
   preselects the target.
+- Link styles: `.back-link` (chevron chip above the h1 on sub-pages),
+  `.pill-link` (section-head / "All workouts" links), `.quick-links` tiles on
+  Workout home (Routines / Reminders / Settings); other links in workout
+  pages are styled via `body.mod-workout` (base.html adds `mod-<key>`).
 - Backup: `workout_exercises` + nested `workout_sessions` (exercises by name,
   sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`),
   `workout_routines` (by name, items by exercise name), `workout_settings`

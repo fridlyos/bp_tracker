@@ -638,3 +638,34 @@ a.stat:hover { background: var(--surface-subtle); }
 .due-skipped .entry-name { color: var(--muted); }
 .wk-dots i.skip { border-style: dashed; border-color: var(--muted); background: repeating-linear-gradient(135deg, var(--muted-soft) 0 1.5px, transparent 1.5px 4px); }
 .wo-note + .wo-links { margin-top: .6rem; }
+
+/* --- workout: nicer links (back chip, pill links, quick-link tiles, inline links) */
+.back-link { display: inline-flex; align-items: center; gap: .15rem; min-height: 2.75rem; margin: -.6rem 0 -.2rem -.45rem;
+  padding: 0 .6rem 0 .25rem; border-radius: 10px; color: var(--primary); font-size: .92rem; font-weight: 650;
+  text-decoration: none; }
+.back-link:hover { background: var(--surface-subtle); }
+.back-link svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4;
+  stroke-linecap: round; stroke-linejoin: round; }
+.pill-link { display: inline-flex; align-items: center; gap: .1rem; min-height: 2.75rem; padding: 0 .55rem 0 .9rem;
+  border-radius: 999px; background: color-mix(in srgb, var(--primary) 11%, var(--surface)); color: var(--primary);
+  font-size: .88rem; font-weight: 650; text-decoration: none; white-space: nowrap; flex: 0 0 auto; }
+:root[data-theme="dark"] .pill-link { background: color-mix(in srgb, var(--primary) 18%, var(--surface)); }
+.pill-link:hover { background: color-mix(in srgb, var(--primary) 20%, var(--surface)); }
+.pill-link:active { transform: scale(.97); }
+.pill-link svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4;
+  stroke-linecap: round; stroke-linejoin: round; }
+.section-head:has(.pill-link) h2 { margin: 0; }
+.more-row { margin: .8rem 0 0; }
+.quick-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin: .2rem 0 1.4rem; }
+.wo-note + .quick-links { margin-top: .8rem; }
+.quick-links a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem;
+  min-height: 4.5rem; padding: .7rem .4rem; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); color: var(--text-strong); font-size: .88rem; font-weight: 650; text-decoration: none;
+  transition: transform .1s; }
+.quick-links a:hover { background: var(--surface-subtle); border-color: var(--input-border); }
+.quick-links a:active { transform: scale(.96); }
+.quick-links svg { width: 26px; height: 26px; fill: none; stroke: var(--primary); stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; }
+/* plain links inside workout pages: colour + weight, underline only on hover */
+.mod-workout main a:not([class]) { color: var(--primary); font-weight: 600; text-decoration: none; }
+.mod-workout main a:not([class]):hover { text-decoration: underline; text-underline-offset: 3px; }
