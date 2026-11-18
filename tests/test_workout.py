@@ -486,3 +486,65 @@ def test_reminder_validation_home_and_backup():
     up()
     assert "Added 0 items" in up().text
     assert "Every day" in b.get("/workout/reminders").text
+
+
+# --- exercise form: measured by + hold time + inline reminder
+
+def test_exercise_form_measure_hold_and_reminder():
+    c = _user("America/New_York")
+    r = c.post("/workout/exercises", data={
+        "name": "Wall sit", "measure": "time", "hold_min": "1", "hold_sec": "30", "default_rest_sec": "60",
+        "remind": "1", "days": ["0", "1", "2", "3", "4"], "at_time": "19:00", "weekly_goal": "4"},
+        follow_redirects=False)
+    assert r.status_code == 303, r.text
+    ws = next(e for e in c.get("/api/workout/exercises").json() if e["name"] == "Wall sit")
+    assert (ws["track_reps"], ws["track_weight"], ws["target_duration_sec"]) == (False, False, 90)
+    rems = c.get("/workout/reminders").text
+    assert "Wall sit" in rems and "19:00" in rems and "goal 4 days/week" in rems
+    assert "timed, hold 1:30" in c.get("/workout/exercises").text
+
+    page = c.get(f"/workout/exercises/{ws['id']}").text
+    assert 'name="measure" value="time" checked' in page and 'name="hold_sec"' in page and 'value="30"' in page
+    assert 'id="remind" checked' in page and 'name="days" value="5"' in page
+
+    # edit: Saturday too, goal 5 (updates the same reminder)
+    c.post(f"/workout/exercises/{ws['id']}", data={
+        "name": "Wall sit", "measure": "time", "hold_min": "2", "hold_sec": "", "remind": "1",
+        "days": ["0", "1", "2", "3", "4", "5"], "at_time": "07:30", "weekly_goal": "5"})
+    with db.connect() as conn:
+        rows = conn.execute("SELECT days, at_time, weekly_goal FROM workout_reminders WHERE exercise_id = ?",
+                            (ws["id"],)).fetchall()
+    assert [tuple(r) for r in rows] == [("012345", "07:30", 5)]
+    assert c.get("/api/workout/exercises").json()[0]["target_duration_sec"] == 120
+
+    # the live session carries the hold target
+    s = c.post("/api/workout/sessions").json()
+    d = c.post(f"/api/workout/sessions/{s['id']}/exercises", json={"exercise_id": ws["id"]}).json()["session"]
+    assert d["exercises"][0]["target_duration_sec"] == 120
+
+    # bad reminder input: nothing saved, form keeps what was typed
+    r = c.post(f"/workout/exercises/{ws['id']}", data={"name": "Wall sit 2", "measure": "time", "remind": "1",
+                                                        "days": [], "at_time": "07:30"})
+    assert r.status_code == 422 and "Pick at least one day" in r.text and 'value="Wall sit 2"' in r.text
+    assert c.get("/api/workout/exercises").json()[0]["name"] == "Wall sit"
+
+    # untick = remove the reminder; switching to Weight drops the hold time
+    c.post(f"/workout/exercises/{ws['id']}", data={"name": "Wall sit", "measure": "weight", "hold_min": "1"})
+    got = c.get("/api/workout/exercises").json()[0]
+    assert (got["track_reps"], got["track_weight"], got["target_duration_sec"]) == (True, True, None)
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM workout_reminders WHERE exercise_id = ?", (ws["id"],)).fetchone()[0] == 0
+
+
+def test_exercise_with_several_reminders_links_out():
+    c = _user()
+    ex = _exercise(c, "Plank", track_reps=False, track_weight=False)
+    for t in ("07:00", "19:00"):
+        c.post("/workout/reminders", data={"target": f"e:{ex['id']}", "days": ["0"], "at_time": t})
+    page = c.get(f"/workout/exercises/{ex['id']}").text
+    assert "has 2 reminders" in page and 'name="remind"' not in page
+    # saving the exercise leaves both alone
+    c.post(f"/workout/exercises/{ex['id']}", data={"name": "Plank", "measure": "time"})
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM workout_reminders WHERE exercise_id = ?", (ex["id"],)).fetchone()[0] == 2
+    assert f'value="e:{ex["id"]}" selected' in c.get(f"/workout/reminders/new?target=e:{ex['id']}").text

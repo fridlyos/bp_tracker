@@ -189,6 +189,16 @@ the "workout-module-plan" doc in the HEALTH APP Claude project.
   opens `/workout?remind=<id>`; home "Today" lists today's reminders with
   Start (`POST /workout/reminders/{id}/start` = routine, or a workout with the
   exercise added). Reminders page has the push-device block (`push.js`).
+- Exercise form (`web._save`, async, reads the whole form): "Measured by"
+  radio `measure` = weight (reps+weight) | reps (bodyweight) | time (neither)
+  → `track_reps`/`track_weight`; Time adds an optional target hold (min + sec
+  → `target_duration_sec`, `0008_workout_target_duration`, cleared by
+  `ExerciseIn` for non-timed). Live set phase counts toward the hold and
+  beeps once when reached (`holdTarget`, `st.holdAlerted`). Inline reminder
+  on the same form when the exercise has ≤ 1 reminder: "Remind me" ticked =
+  create/update it (validated before anything is saved), unticked = delete
+  it; with 2+ it links to them instead. `/workout/reminders/new?target=e:<id>`
+  preselects the target.
 - Backup: `workout_exercises` + nested `workout_sessions` (exercises by name,
   sets by uid; a uid owned by another account is restored as `<uid>-u<user_id>`),
   `workout_routines` (by name, items by exercise name), `workout_settings`

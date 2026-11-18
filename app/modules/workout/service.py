@@ -31,7 +31,7 @@ def _exercise(row) -> Exercise:
     return Exercise(id=row["id"], name=row["name"], category=row["category"], equipment=row["equipment"],
                     track_reps=bool(row["track_reps"]), track_weight=bool(row["track_weight"]),
                     unit=row["unit"], default_rest_sec=row["default_rest_sec"], notes=row["notes"],
-                    active=bool(row["active"]))
+                    target_duration_sec=row["target_duration_sec"], active=bool(row["active"]))
 
 
 def list_exercises(conn, user_id: int, active_only: bool = False) -> list[Exercise]:
@@ -58,13 +58,15 @@ def save_exercise(conn, user_id: int, e: ExerciseIn, exercise_id: int | None = N
     if clash:
         raise DuplicateName(f"You already have an exercise called {e.name}")
     vals = (e.name, e.category, e.equipment, int(e.track_reps), int(e.track_weight), e.unit,
-            e.default_rest_sec, e.notes)
+            e.default_rest_sec, e.notes, e.target_duration_sec)
     if exercise_id is None:
         exercise_id = conn.execute(
             "INSERT INTO workout_exercises (name, category, equipment, track_reps, track_weight, unit,"
-            " default_rest_sec, notes, user_id) VALUES (?,?,?,?,?,?,?,?,?)", (*vals, user_id)).lastrowid
+            " default_rest_sec, notes, target_duration_sec, user_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (*vals, user_id)).lastrowid
     elif conn.execute("UPDATE workout_exercises SET name=?, category=?, equipment=?, track_reps=?,"
-                      " track_weight=?, unit=?, default_rest_sec=?, notes=? WHERE id=? AND user_id=?",
+                      " track_weight=?, unit=?, default_rest_sec=?, notes=?, target_duration_sec=?"
+                      " WHERE id=? AND user_id=?",
                       (*vals, exercise_id, user_id)).rowcount == 0:
         return None
     conn.commit()
@@ -220,7 +222,8 @@ def session_detail(conn, user_id: int, session_id: int) -> dict | None:
         return None
     exercises = []
     for se in conn.execute(
-            "SELECT se.*, e.name, e.track_reps, e.track_weight, e.unit FROM workout_session_exercises se"
+            "SELECT se.*, e.name, e.track_reps, e.track_weight, e.unit, e.target_duration_sec AS hold_sec"
+            " FROM workout_session_exercises se"
             " JOIN workout_exercises e ON e.id = se.exercise_id WHERE se.session_id = ? ORDER BY se.position",
             (session_id,)):
         sets, prev_end = [], None
@@ -237,6 +240,7 @@ def session_detail(conn, user_id: int, session_id: int) -> dict | None:
             "id": se["id"], "exercise_id": se["exercise_id"], "name": se["name"],
             "track_reps": bool(se["track_reps"]), "track_weight": bool(se["track_weight"]),
             "unit": se["unit"], "target_rest_sec": se["target_rest_sec"], "group_id": se["group_id"],
+            "target_duration_sec": se["hold_sec"],
             "sets": sets, "summary": _summary(sets),
             "previous": last_sets(conn, user_id, se["exercise_id"], before_session=session_id)})
     all_sets = [s for e in exercises for s in e["sets"]]

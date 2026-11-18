@@ -23,13 +23,20 @@
     </div>
     <datalist id="wo-cats"><option>Push</option><option>Pull</option><option>Legs</option><option>Core</option><option>Full body</option></datalist>
     <datalist id="wo-equip"><option>Barbell</option><option>Dumbbell</option><option>Kettlebell</option><option>Machine</option><option>Cable</option><option>Bodyweight</option><option>Band</option></datalist>
-    <fieldset class="kind-choice">
-      <legend>Each set records <span class="muted">(the timer always records how long the set took)</span></legend>
-      <label class="kind-option"><input type="checkbox" name="track_reps" value="1"{% if f.track_reps %} checked{% endif %}> Reps</label>
-      <label class="kind-option"><input type="checkbox" name="track_weight" value="1"{% if f.track_weight %} checked{% endif %}> Weight</label>
+    <fieldset class="kind-choice measure-choice" id="measure">
+      <legend>Measured by</legend>
+      {% for k, label, hint in [("weight", "Weight", "reps × weight"), ("reps", "Reps", "bodyweight"), ("time", "Time", "a hold, e.g. wall sit")] %}
+      <label class="measure-opt"><input type="radio" name="measure" value="{{ k }}"{% if measure == k %} checked{% endif %}>
+        <span><b>{{ label }}</b><small>{{ hint }}</small></span></label>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="kind-choice hold-time" data-show-for="time">
+      <legend>Target hold <span class="muted">(optional: the timer beeps when you reach it)</span></legend>
+      <label class="hold-part"><input type="number" name="hold_min" min="0" max="60" inputmode="numeric" value="{{ hold_min }}" placeholder="0" aria-label="Minutes"> min</label>
+      <label class="hold-part"><input type="number" name="hold_sec" min="0" max="59" inputmode="numeric" value="{{ hold_sec }}" placeholder="0" aria-label="Seconds"> sec</label>
     </fieldset>
     <div class="wo-grid2">
-      <fieldset class="kind-choice">
+      <fieldset class="kind-choice" data-show-for="weight">
         <legend>Unit</legend>
         {% for u in ("lb", "kg") %}
         <label class="kind-option"><input type="radio" name="unit" value="{{ u }}"{% if f.unit == u %} checked{% endif %}> {{ u }}</label>
@@ -42,12 +49,66 @@
     <label>Notes <span class="muted">(optional)</span>
       <input name="notes" maxlength="300" value="{{ f.notes or '' }}" placeholder="e.g. belt on top sets">
     </label>
+    <fieldset class="remind-box">
+      <legend>Reminder</legend>
+      {% if reminders|length > 1 %}
+      <p class="muted">This exercise has {{ reminders|length }} reminders:
+        {% for r in reminders %}<a href="/workout/reminders/{{ r.id }}">{{ r.at_time }}</a>{{ ", " if not loop.last }}{% endfor %}.
+        <a href="/workout/reminders">Manage reminders</a></p>
+      {% else %}
+      <label class="kind-option"><input type="checkbox" name="remind" value="1" id="remind"{% if f.remind %} checked{% endif %}> Remind me to do this</label>
+      <div class="remind-fields" id="remind-fields">
+        <fieldset class="kind-choice day-choice">
+          <legend>On these days</legend>
+          {% for d in range(7) %}
+          <label class="day-chip"><input type="checkbox" name="days" value="{{ d }}"{% if d in (f.days or []) %} checked{% endif %}><span>{{ day_names[d] }}</span></label>
+          {% endfor %}
+        </fieldset>
+        <div class="wo-grid2">
+          <label>At <input type="time" name="at_time" value="{{ f.at_time or '18:00' }}"></label>
+          <label>Weekly goal <span class="muted">(days, optional)</span>
+            <input type="number" name="weekly_goal" inputmode="numeric" min="1" max="7" value="{{ f.weekly_goal if f.weekly_goal is not none else '' }}" placeholder="every day picked"></label>
+        </div>
+        {% if not devices %}
+        <div class="push-device" data-push data-devices="{{ devices }}">
+          <p class="push-status" data-push-status>Checking notifications on this device…</p>
+          <div class="push-actions">
+            <button type="button" data-push-enable hidden>Enable notifications on this device</button>
+            <button type="button" class="secondary" data-push-test hidden>Send test</button>
+            <button type="button" class="secondary" data-push-disable hidden>Turn off on this device</button>
+          </div>
+        </div>
+        {% endif %}
+        <p class="muted wo-note">Skipped on days you've already done it, and once the weekly goal is met. <a href="/workout/reminders">All reminders</a></p>
+      </div>
+      {% endif %}
+    </fieldset>
     <div class="dialog-actions">
       <a class="button-link secondary" href="/workout/exercises">Cancel</a>
       <button type="submit">{{ "Save changes" if edit else "Add" }}</button>
     </div>
   </form>
 </section>
+
+<script>
+  // show the hold time only for Time, the unit only for Weight; reminder fields only when ticked
+  (function () {
+    const radios = document.querySelectorAll('input[name="measure"]');
+    function sync() {
+      const m = [...radios].find((r) => r.checked)?.value || "weight";
+      document.querySelectorAll("[data-show-for]").forEach((el) => { el.hidden = el.dataset.showFor !== m; });
+    }
+    radios.forEach((r) => r.addEventListener("change", sync));
+    sync();
+    const remind = document.getElementById("remind"), fields = document.getElementById("remind-fields");
+    if (remind && fields) {
+      const show = () => { fields.hidden = !remind.checked; };
+      remind.addEventListener("change", show);
+      show();
+    }
+  })();
+</script>
+<script src="{{ static_url('push.js') }}" defer></script>
 
 {% if history %}
 <section class="panel">

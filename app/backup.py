@@ -44,7 +44,7 @@ def export_user(conn, user_id: int, username: str) -> dict:
             {**r, "track_reps": bool(r["track_reps"]), "track_weight": bool(r["track_weight"]),
              "active": bool(r["active"])}
             for r in q("SELECT name, category, equipment, track_reps, track_weight, unit, default_rest_sec,"
-                       " notes, active FROM workout_exercises WHERE user_id = ? ORDER BY id")],
+                       " notes, target_duration_sec, active FROM workout_exercises WHERE user_id = ? ORDER BY id")],
         "workout_sessions": _export_sessions(conn, user_id),
         "workout_routines": _export_routines(conn, user_id),
         "workout_reminders": [
@@ -204,7 +204,8 @@ def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
     for r in rows("workout_exercises"):
         try:
             e = ExerciseIn(**{k: r.get(k) for k in ("name", "category", "equipment", "track_reps", "track_weight",
-                                                       "unit", "default_rest_sec", "notes") if r.get(k) is not None})
+                                                       "unit", "default_rest_sec", "notes", "target_duration_sec")
+                              if r.get(k) is not None})
         except (ValidationError, TypeError):
             n["invalid"] += 1
             continue
@@ -216,9 +217,9 @@ def _restore_workout(conn, user_id: int, rows, n: dict) -> None:
             continue
         ex_ids[e.name.lower()] = conn.execute(
             "INSERT INTO workout_exercises (user_id, name, category, equipment, track_reps, track_weight, unit,"
-            " default_rest_sec, notes, active) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " default_rest_sec, notes, target_duration_sec, active) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (user_id, e.name, e.category, e.equipment, int(e.track_reps), int(e.track_weight), e.unit,
-             e.default_rest_sec, e.notes, 0 if r.get("active") is False else 1)).lastrowid
+             e.default_rest_sec, e.notes, e.target_duration_sec, 0 if r.get("active") is False else 1)).lastrowid
         n["added"] += 1
 
     routine_ids = _restore_routines(conn, user_id, rows, n, ex_ids)

@@ -25,6 +25,21 @@ class ExerciseIn(BaseModel):
     unit: Unit = "lb"
     default_rest_sec: int = Field(90, ge=0, le=1800)
     notes: str | None = Field(None, max_length=300)
+    # timed exercises only (no reps, no weight): the hold to aim for
+    target_duration_sec: int | None = Field(None, ge=5, le=3600)
+
+    @property
+    def measure(self) -> str:
+        """'weight' (reps x weight), 'reps' (bodyweight) or 'time' (a hold)."""
+        if self.track_weight:
+            return "weight"
+        return "reps" if self.track_reps else "time"
+
+    @model_validator(mode="after")
+    def _duration_only_when_timed(self):
+        if self.track_reps or self.track_weight:
+            self.target_duration_sec = None
+        return self
 
     @field_validator("name", "category", "equipment", "notes", mode="before")
     @classmethod

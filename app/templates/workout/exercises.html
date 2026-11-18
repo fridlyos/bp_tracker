@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "workout/_fmt.html" import dur %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -19,7 +20,7 @@
           {%- set bits = [] -%}
           {%- if e.category %}{% set _ = bits.append(e.category) %}{% endif -%}
           {%- if e.equipment %}{% set _ = bits.append(e.equipment) %}{% endif -%}
-          {%- set _ = bits.append("reps + weight" if e.track_reps and e.track_weight else "reps" if e.track_reps else "weight, timed" if e.track_weight else "timed") -%}
+          {%- set _ = bits.append("reps + weight" if e.track_reps and e.track_weight else "reps" if e.track_reps else "weight, timed" if e.track_weight else ("timed, hold " ~ dur(e.target_duration_sec) if e.target_duration_sec else "timed")) -%}
           {%- set _ = bits.append("rest " ~ e.default_rest_sec ~ "s") -%}
           {{ bits|join(" · ") }}
         </span>

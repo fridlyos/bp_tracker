@@ -87,13 +87,15 @@
     const gids = [...new Set(S.exercises.filter((e) => e.group_id != null).map((e) => e.group_id))];
     return String.fromCharCode(65 + gids.indexOf(ex.group_id)) + (groupOf(ex).indexOf(ex) + 1);
   }
+  const holdTarget = (ex) => (!ex.track_reps && !ex.track_weight && ex.target_duration_sec) || null;
   const targetDone = (ex) => ex.target_sets != null && ex.sets.length >= ex.target_sets;
   const targetText = (ex) => {
-    if (ex.target_sets == null) return "";
+    const hold = holdTarget(ex) ? "hold " + clock(ex.target_duration_sec) : "";
+    if (ex.target_sets == null) return hold;
     let t = ex.target_sets + (ex.target_sets === 1 ? " set" : " sets");
     if (ex.track_reps && ex.target_reps) t = ex.target_sets + " × " + ex.target_reps;
     if (ex.track_weight && ex.target_weight != null) t += " @ " + num(ex.target_weight) + " " + ex.unit;
-    return t;
+    return hold ? t + ", " + hold : t;
   };
   const allSets = () => S.exercises.flatMap((e) => e.sets);
   const setLine = (ex, s) => {
@@ -189,8 +191,8 @@
       head.append(el("span", "muted wo-ex-rest", "rest " + dur(ex.target_rest_sec)));
       sec.append(head);
       const tt = targetText(ex);
-      if (tt) sec.append(el("p", "entry-meta wo-ex-target",
-        "Target " + tt + " · " + Math.min(ex.sets.length, ex.target_sets) + "/" + ex.target_sets + (targetDone(ex) ? " ✓" : "")));
+      if (tt) sec.append(el("p", "entry-meta wo-ex-target", "Target " + tt + (ex.target_sets == null ? ""
+        : " · " + Math.min(ex.sets.length, ex.target_sets) + "/" + ex.target_sets + (targetDone(ex) ? " ✓" : ""))));
       if (ex.previous && ex.previous.length) {
         sec.append(el("p", "entry-meta wo-prev",
           "Last time: " + ex.previous.map((p) => setLine(ex, p) || "timed").join(", ")));
@@ -358,6 +360,7 @@
       st.phase = "set";
       st.setStart = now;
       st.alerted = false;
+      st.holdAlerted = false;
     } else {
       const p = {
         uid: uuid(), session_exercise_id: ex.id,
@@ -401,9 +404,16 @@
     sub.classList.remove("is-pr");
     if (st.phase === "set") {
       box.classList.add("is-set");
+      const held = (now - st.setStart) / 1000, hold = holdTarget(ex);
       label.textContent = "Set " + (ex.sets.length + 1);
-      time.textContent = clock((now - st.setStart) / 1000);
-      sub.textContent = "time under tension";
+      time.textContent = clock(held);
+      if (hold && held >= hold) {
+        box.classList.add("is-over");
+        sub.textContent = "Target " + clock(hold) + " reached ✓ End the set when you stop";
+        if (!st.holdAlerted) { st.holdAlerted = true; save(); alertRestDone(); }
+      } else {
+        sub.textContent = hold ? clock(hold - held) + " to go of " + clock(hold) : "time under tension";
+      }
     } else if (st.phase === "rest") {
       const rest = (now - st.setEnd) / 1000;
       const target = st.restTarget != null ? st.restTarget : ex.target_rest_sec;

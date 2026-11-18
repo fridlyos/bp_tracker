@@ -133,19 +133,29 @@ def exercises(request: Request, conn=Depends(db.get_db), user: User | None = Dep
     return render(request, "workout/exercises.html", user, {"exercises": service.list_exercises(conn, user.id)})
 
 
-def _form_page(request, user, ex=None, form=None, error=None, status=200, history=None):
+def _form_page(request, user, ex=None, form=None, error=None, status=200, history=None, conn=None):
+    from ... import push
+    reminders = _exercise_reminders(conn, user.id, ex.id if ex else None) if conn else []
+    f = form or (ex.model_dump() if ex else ExerciseIn(name="x").model_dump() | {"name": ""})
+    if form is None:  # the reminder part of the form, from the saved reminder (if one)
+        r = reminders[0] if len(reminders) == 1 else None
+        f = f | {"remind": bool(r), "days": r["days"] if r else [0, 1, 2, 3, 4],
+                 "at_time": r["at_time"] if r else "18:00", "weekly_goal": r["weekly_goal"] if r else None}
+    hold = f.get("target_duration_sec")
     resp = render(request, "workout/exercise_form.html", user, {
-        "edit": ex, "f": form or (ex.model_dump() if ex else ExerciseIn(name="x").model_dump() | {"name": ""}),
-        "error": error, "history": history or []})
+        "edit": ex, "f": f, "error": error, "history": history or [], "reminders": reminders,
+        "measure": "weight" if f.get("track_weight") else "reps" if f.get("track_reps") else "time",
+        "hold_min": hold // 60 if hold else "", "hold_sec": hold % 60 if hold else "",
+        "day_names": DAY_NAMES, "devices": push.device_count(conn, user.id) if conn else 0})
     resp.status_code = status
     return resp
 
 
 @router.get("/exercises/new")
-def exercise_new(request: Request, user: User | None = Depends(current_user)):
+def exercise_new(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    return _form_page(request, user)
+    return _form_page(request, user, conn=conn)
 
 
 @router.get("/exercises/{exercise_id}")
@@ -156,49 +166,78 @@ def exercise_edit(exercise_id: int, request: Request, conn=Depends(db.get_db),
     ex = service.get_exercise(conn, user.id, exercise_id)
     if ex is None:
         return redirect("/workout/exercises")
-    return _form_page(request, user, ex, history=service.exercise_history(conn, user.id, exercise_id, 10))
+    return _form_page(request, user, ex, history=service.exercise_history(conn, user.id, exercise_id, 10),
+                      conn=conn)
 
 
-def _save(request, conn, user, exercise_id, form: dict):
+MEASURES = {"weight": (True, True), "reps": (True, False), "time": (False, False)}  # -> (reps, weight)
+
+
+def _exercise_reminders(conn, user_id: int, exercise_id: int | None) -> list[dict]:
+    return [r for r in service.list_reminders(conn, user_id) if r["exercise_id"] == exercise_id] \
+        if exercise_id else []
+
+
+async def _save(request, conn, user, exercise_id):
+    """Save the exercise and, from the same form, its reminder: 'remind'
+    ticked = create/update it, unticked = remove it. Only when the exercise
+    has at most one reminder (more are managed on the Reminders page)."""
     edit = service.get_exercise(conn, user.id, exercise_id) if exercise_id else None
     if exercise_id and edit is None:
         return redirect("/workout/exercises")
+    f = await request.form()
+    reps, weight = MEASURES.get(f.get("measure", ""), (True, True))
+    mins, secs = _num(f.get("hold_min", "")), _num(f.get("hold_sec", ""))
+    hold = None
+    if isinstance(mins, int) or isinstance(secs, int):
+        hold = (mins if isinstance(mins, int) else 0) * 60 + (secs if isinstance(secs, int) else 0)
+    form = {"name": f.get("name", ""), "category": f.get("category", ""), "equipment": f.get("equipment", ""),
+            "track_reps": reps, "track_weight": weight, "unit": f.get("unit", "lb"),
+            "default_rest_sec": f.get("default_rest_sec") or 90, "notes": f.get("notes", ""),
+            "target_duration_sec": hold}
+    existing = _exercise_reminders(conn, user.id, exercise_id)
+    inline = len(existing) <= 1
+    want = inline and f.get("remind") == "1"
+    days = f.getlist("days")
+    rem_form = {"days": [int(d) for d in days if d.isdigit()], "at_time": f.get("at_time", ""),
+                "weekly_goal": _num(f.get("weekly_goal", ""))}
+
+    def again(msg):
+        return _form_page(request, user, edit, form | {"remind": want, **rem_form}, msg, 422, conn=conn)
+
     try:
         e = ExerciseIn(**form)
-        service.save_exercise(conn, user.id, e, exercise_id)
+        rem = ReminderIn(exercise_id=0, days=days, at_time=rem_form["at_time"],
+                         weekly_goal=rem_form["weekly_goal"]) if want else None
     except ValidationError as err:
-        return _form_page(request, user, edit, form, _error_text(err), 422)
+        return again(_error_text(err))
+    try:
+        saved = service.save_exercise(conn, user.id, e, exercise_id)
     except service.DuplicateName as err:
-        return _form_page(request, user, edit, form, str(err), 422)
+        return again(str(err))
+    if inline and saved:
+        if rem is not None:
+            rem.exercise_id = saved.id
+            service.save_reminder(conn, user.id, rem, clock.user_tz(request).key,
+                                  existing[0]["id"] if existing else None)
+        elif existing:
+            service.delete_reminder(conn, user.id, existing[0]["id"])
     return redirect("/workout/exercises")
 
 
-def _form(name, category, equipment, track_reps, track_weight, unit, default_rest_sec, notes) -> dict:
-    return {"name": name, "category": category, "equipment": equipment, "track_reps": track_reps == "1",
-            "track_weight": track_weight == "1", "unit": unit, "default_rest_sec": default_rest_sec or 90,
-            "notes": notes}
-
-
 @router.post("/exercises")
-def exercise_create(request: Request, name: str = Form(""), category: str = Form(""),
-                    equipment: str = Form(""), track_reps: str = Form(""), track_weight: str = Form(""),
-                    unit: str = Form("lb"), default_rest_sec: str = Form("90"), notes: str = Form(""),
-                    conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+async def exercise_create(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    return _save(request, conn, user, None, _form(name, category, equipment, track_reps, track_weight, unit,
-                                                  default_rest_sec, notes))
+    return await _save(request, conn, user, None)
 
 
 @router.post("/exercises/{exercise_id}")
-def exercise_update(exercise_id: int, request: Request, name: str = Form(""), category: str = Form(""),
-                    equipment: str = Form(""), track_reps: str = Form(""), track_weight: str = Form(""),
-                    unit: str = Form("lb"), default_rest_sec: str = Form("90"), notes: str = Form(""),
-                    conn=Depends(db.get_db), user: User | None = Depends(current_user)):
+async def exercise_update(exercise_id: int, request: Request, conn=Depends(db.get_db),
+                          user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    return _save(request, conn, user, exercise_id, _form(name, category, equipment, track_reps, track_weight,
-                                                         unit, default_rest_sec, notes))
+    return await _save(request, conn, user, exercise_id)
 
 
 @router.post("/exercises/{exercise_id}/active")
@@ -408,7 +447,9 @@ def reminders(request: Request, conn=Depends(db.get_db), user: User | None = Dep
 def reminder_new(request: Request, conn=Depends(db.get_db), user: User | None = Depends(current_user)):
     if user is None:
         return redirect("/login")
-    return _reminder_form(conn, user, request)
+    target = request.query_params.get("target", "")
+    return _reminder_form(conn, user, request, form={"target": target, "days": [0, 1, 2, 3, 4],
+                                                     "at_time": "18:00", "weekly_goal": None} if target else None)
 
 
 @router.get("/reminders/{reminder_id}")
