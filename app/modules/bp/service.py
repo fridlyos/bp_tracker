@@ -91,19 +91,71 @@ def purge_before(conn, user_id: int, before: date, dry_run: bool = False) -> int
 RANGE_DAYS = {"week": 7, "month": 30, "3m": 90}
 
 
+# --- daily averages, calibrated by measuring session
+#
+# Readings are often taken in quick runs (e.g. 2-3 cuffs a minute apart). A
+# run shouldn't outweigh a single reading at another time of day, so:
+#   1. Sessions: sort a day's readings by time; a reading joins the current
+#      session if it's within SESSION_GAP (5 min) of the previous reading,
+#      otherwise it starts a new one. Sessions never cross midnight.
+#   2. Session average = mean of its readings (pulse: readings with a pulse).
+#   3. Daily average = mean of that day's session averages (pulse: sessions
+#      with a pulse).
+# Range and report averages then average the daily averages (each day counts
+# once). Min/max and zone counts stay per reading.
+
+SESSION_GAP = timedelta(minutes=5)
+
+
+def _mean(vals):
+    vals = [v for v in vals if v is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
+def sessions(readings: list[Reading]) -> list[list[Reading]]:
+    """Group readings into measuring sessions (oldest first): consecutive
+    readings on the same day at most SESSION_GAP apart."""
+    out: list[list[Reading]] = []
+    prev = None
+    for r in sorted(readings, key=lambda r: r.taken_at):
+        t = datetime.fromisoformat(r.taken_at)
+        if prev is not None and t.date() == prev.date() and t - prev <= SESSION_GAP:
+            out[-1].append(r)
+        else:
+            out.append([r])
+        prev = t
+    return out
+
+
+def session_average(group: list[Reading]) -> dict:
+    return {"start": group[0].taken_at, "end": group[-1].taken_at, "count": len(group),
+            "systolic": _mean([r.systolic for r in group]), "diastolic": _mean([r.diastolic for r in group]),
+            "pulse": _mean([r.pulse for r in group])}
+
+
+def day_values(readings: list[Reading]) -> dict[str, dict]:
+    """{'YYYY-MM-DD': {systolic, diastolic, pulse, count, sessions}} (unrounded),
+    each value the mean of the day's session averages."""
+    by_day: dict[str, list[Reading]] = {}
+    for r in readings:
+        by_day.setdefault(r.taken_at[:10], []).append(r)
+    out = {}
+    for d in sorted(by_day):
+        avgs = [session_average(g) for g in sessions(by_day[d])]
+        out[d] = {"systolic": _mean([a["systolic"] for a in avgs]),
+                  "diastolic": _mean([a["diastolic"] for a in avgs]),
+                  "pulse": _mean([a["pulse"] for a in avgs]),
+                  "count": len(by_day[d]), "sessions": len(avgs)}
+    return out
+
+
 def daily_averages(conn, user_id: int, start: date, end: date) -> list[dict]:
-    """Per-day averages in [start, end] (inclusive), oldest first. Days without
-    readings are omitted. Pulse averages only readings that have a pulse."""
-    rows = conn.execute(
-        "SELECT substr(taken_at, 1, 10) AS day,"
-        " AVG(systolic) AS systolic, AVG(diastolic) AS diastolic,"
-        " AVG(pulse) AS pulse, COUNT(*) AS count"
-        " FROM readings WHERE user_id = ? AND taken_at >= ? AND taken_at < ?"
-        " GROUP BY day ORDER BY day",
-        (user_id, start.isoformat(), (end + timedelta(days=1)).isoformat()),
-    )
-    return [{"x": r["day"], "systolic": _r1(r["systolic"]), "diastolic": _r1(r["diastolic"]),
-             "pulse": _r1(r["pulse"]), "count": r["count"]} for r in rows]
+    """Per-day averages in [start, end] (inclusive), oldest first, session-
+    calibrated (see above). Days without readings are omitted."""
+    days = day_values(list_readings(conn, user_id, start, end))
+    return [{"x": d, "systolic": _r1(v["systolic"]), "diastolic": _r1(v["diastolic"]),
+             "pulse": _r1(v["pulse"]), "count": v["count"], "sessions": v["sessions"]}
+            for d, v in days.items()]
 
 
 def _r1(v):
@@ -114,17 +166,11 @@ def _summary(conn, user_id: int, start: date, end: date) -> dict:
     """Range averages = average of the daily averages, so a day with many
     readings weighs the same as a day with one. Pulse: days with a pulse only.
     count = number of readings."""
-    r = conn.execute(
-        "SELECT AVG(systolic) AS systolic, AVG(diastolic) AS diastolic,"
-        " AVG(pulse) AS pulse, COALESCE(SUM(n), 0) AS count FROM ("
-        "  SELECT AVG(systolic) AS systolic, AVG(diastolic) AS diastolic,"
-        "  AVG(pulse) AS pulse, COUNT(*) AS n"
-        "  FROM readings WHERE user_id = ? AND taken_at >= ? AND taken_at < ?"
-        "  GROUP BY substr(taken_at, 1, 10))",
-        (user_id, start.isoformat(), (end + timedelta(days=1)).isoformat()),
-    ).fetchone()
-    return {"systolic": _r1(r["systolic"]), "diastolic": _r1(r["diastolic"]),
-            "pulse": _r1(r["pulse"]), "count": r["count"]}
+    days = day_values(list_readings(conn, user_id, start, end)).values()
+    return {"systolic": _r1(_mean([v["systolic"] for v in days])),
+            "diastolic": _r1(_mean([v["diastolic"] for v in days])),
+            "pulse": _r1(_mean([v["pulse"] for v in days])),
+            "count": sum(v["count"] for v in days)}
 
 
 def stats(conn, user_id: int, range_: str, today: date, day: date | None = None) -> dict:
@@ -178,19 +224,14 @@ def _period_label(start: date, end: date, period: str) -> str:
     return f"{start:%b} {start.day}–{end.day}, {end.year}"
 
 
-def _min_avg_max(readings: list[Reading], field: str) -> dict | None:
-    """avg = average of the daily averages (each day counts once, however many
-    readings it has); min/max = lowest/highest single reading. Readings
-    without a value for `field` (pulse) are ignored."""
-    by_day: dict[str, list[int]] = {}
-    for r in readings:
-        v = getattr(r, field)
-        if v is not None:
-            by_day.setdefault(r.taken_at[:10], []).append(v)
-    if not by_day:
+def _min_avg_max(readings: list[Reading], field: str, days: dict | None = None) -> dict | None:
+    """avg = average of the session-calibrated daily averages (each day counts
+    once); min/max = lowest/highest single reading. Readings without a value
+    for `field` (pulse) are ignored."""
+    values = [getattr(r, field) for r in readings if getattr(r, field) is not None]
+    if not values:
         return None
-    daily = [sum(vs) / len(vs) for vs in by_day.values()]
-    values = [v for vs in by_day.values() for v in vs]
+    daily = [v[field] for v in (days or day_values(readings)).values() if v[field] is not None]
     return {"avg": round(sum(daily) / len(daily), 1), "min": min(values), "max": max(values)}
 
 
@@ -205,9 +246,9 @@ def _zone_counts(values: list[int], zones) -> list[dict]:
 
 def reports(conn, user_id: int, period: str) -> list[dict]:
     """One summary per week (Mon–Sun) or calendar month that has readings,
-    newest first: reading count, avg/min/max of systolic, diastolic and pulse
-    (avg is the average of daily averages; see _min_avg_max), and readings
-    per BP zone."""
+    newest first: reading and session counts, avg/min/max of systolic,
+    diastolic and pulse (avg is the average of session-calibrated daily
+    averages; see _min_avg_max), and readings per BP zone."""
     if period not in REPORT_PERIODS:
         raise ValueError(f"unknown period {period!r}")
     groups: dict[date, list[Reading]] = {}
@@ -219,13 +260,15 @@ def reports(conn, user_id: int, period: str) -> list[dict]:
         _, end = _period_bounds(start, period)
         sys_ = [r.systolic for r in rs]
         dia = [r.diastolic for r in rs]
+        days = day_values(rs)
         out.append({
             "start": start.isoformat(), "end": end.isoformat(),
             "label": _period_label(start, end, period),
             "count": len(rs),
             "days": len({r.taken_at[:10] for r in rs}),
-            "systolic": _min_avg_max(rs, "systolic"), "diastolic": _min_avg_max(rs, "diastolic"),
-            "pulse": _min_avg_max(rs, "pulse"),
+            "sessions": sum(v["sessions"] for v in days.values()),
+            "systolic": _min_avg_max(rs, "systolic", days), "diastolic": _min_avg_max(rs, "diastolic", days),
+            "pulse": _min_avg_max(rs, "pulse", days),
             "systolic_zones": _zone_counts(sys_, SYS_ZONES),
             "diastolic_zones": _zone_counts(dia, DIA_ZONES),
         })

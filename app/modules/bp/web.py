@@ -8,9 +8,20 @@ from pydantic import ValidationError
 from ... import clock, db, push
 from ...deps import current_user
 from ...schemas import User
-from ...ui import redirect, render, safe_next
+from ...ui import redirect, render, safe_next, templates
 from . import service
 from .schemas import ReadingIn
+
+def _session_groups(items):
+    """Readings (newest first) -> [(session average or None, readings newest first)],
+    newest session first; the average only for sessions of 2+ readings."""
+    out = []
+    for g in reversed(service.sessions(items)):
+        out.append((service.session_average(g) if len(g) > 1 else None, list(reversed(g))))
+    return out
+
+
+templates.env.globals["bp_sessions"] = _session_groups
 
 router = APIRouter(prefix="/bp")
 

@@ -62,7 +62,7 @@
     <div class="chart-box"><canvas id="pulse-chart" role="img"
       aria-label="Pulse line chart. Values are in the table below."></canvas></div>
   </section>
-  <p class="muted chart-hint" id="chart-hint">Tap a day to see its readings.</p>
+  <p class="muted chart-hint" id="chart-hint">Tap a day to see its readings. Each day is the average of its measuring sessions; readings within 5 minutes of each other count as one session.</p>
 
   <section class="panel" id="day-detail" hidden>
     <div class="section-head">
@@ -233,8 +233,9 @@
               title(items) {
                 const p = shaped.byKey[items[0].dataIndex];
                 if (isDay) return shaped.labels[items[0].dataIndex];
-                const n = p ? p.count : 0;
-                return `${fmtDay(shaped.keys[items[0].dataIndex])} · ${n} reading${n === 1 ? "" : "s"}`;
+                const n = p ? p.count : 0, s = p && p.sessions ? p.sessions : n;
+                return `${fmtDay(shaped.keys[items[0].dataIndex])} · ${n} reading${n === 1 ? "" : "s"}` +
+                  (s !== n ? ` in ${s} session${s === 1 ? "" : "s"}` : "");
               },
               // zone named in words too, so colour is never the only signal
               label: (c) => ` ${r0(c.parsed.y)}  ${c.dataset.label}` +
@@ -307,7 +308,8 @@
         th.appendChild(b);
       }
       tr.appendChild(th);
-      [`${r0(p.systolic)}/${r0(p.diastolic)}`, r0(p.pulse), String(p.count)].forEach((t) => {
+      const cnt = p.sessions && p.sessions !== p.count ? `${p.count} (${p.sessions} sess.)` : String(p.count);
+      [`${r0(p.systolic)}/${r0(p.diastolic)}`, r0(p.pulse), cnt].forEach((t) => {
         const td = document.createElement("td"); td.textContent = t; tr.appendChild(td);
       });
       body.appendChild(tr);

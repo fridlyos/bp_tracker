@@ -80,9 +80,17 @@ Blood pressure module (`app/modules/bp/`, templates in `app/templates/bp/`):
 - `api.py` — JSON under `/api/bp` (readings CRUD + purge, `/api/bp/stats`
   chart data, `/api/bp/reports`).
 - `service.py` — readings SQL, stats, reports, reminders.
-  Range averages (Trends summary for week/month/3m, each report period) are
-  the average of daily averages: each day counts once however many readings
-  it has; pulse only over days with a pulse; report min/max stay per reading.
+  Daily averages are session-calibrated (`service.sessions` / `day_values`):
+  a day's readings sorted by time form measuring sessions — a reading joins
+  the current session if it's ≤ 5 min (`SESSION_GAP`) after the previous one
+  (never across midnight); session average = mean of its readings (pulse:
+  readings with a pulse); daily average = mean of the session averages
+  (pulse: sessions with a pulse). Range averages (Trends summary for
+  week/month/3m, each report period) are the average of those daily
+  averages: each day counts once; pulse only over days with a pulse; report
+  min/max and zone counts stay per reading. Daily points and reports carry a
+  `sessions` count. Today/History lists show sessions of 2+ readings with
+  their average ("session avg", `bp_sessions` Jinja global).
 - `schemas.py` — `ReadingIn`, `Reading`, `PurgeIn`.
 - `templates/bp/trends.html` — Chart.js 4.4.1 (cdnjs) page fed by
   `/api/bp/stats`. BP and pulse are separate charts (never a dual axis). BP

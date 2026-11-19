@@ -1,6 +1,7 @@
-{# expects: items (list[Reading]), next (return path after delete) #}
-<ul class="entry-list reading-list">
-  {% for r in items %}
+{# expects: items (list[Reading]), next (return path after delete).
+   Readings within 5 minutes of each other show as one measuring session with
+   its average (the value the daily average uses, see service.sessions). #}
+{% macro reading_row(r) %}
   <li>
     <span class="entry-main">
       <span class="entry-name bp-value">{{ r.systolic }}/{{ r.diastolic }}{% if r.pulse is not none %} <span class="pulse">♥ {{ r.pulse }}</span>{% endif %}</span>
@@ -12,5 +13,22 @@
       <button type="submit" class="x-delete" aria-label="Delete reading" title="Delete">&times;</button>
     </form>
   </li>
+{% endmacro %}
+<ul class="entry-list reading-list">
+  {% for avg, group in bp_sessions(items) %}
+    {% if avg %}
+    <li class="bp-session">
+      <span class="entry-main">
+        <span class="entry-name bp-value">{{ avg.systolic|round|int }}/{{ avg.diastolic|round|int }}{% if avg.pulse is not none %} <span class="pulse">♥ {{ avg.pulse|round|int }}</span>{% endif %}
+          <span class="tag bp-session-tag">session avg</span></span>
+        <span class="entry-meta">{{ avg.start[11:16] }}–{{ avg.end[11:16] }} · {{ avg.count }} readings</span>
+      </span>
+    </li>
+    <li class="bp-session-items"><ul class="entry-list">
+      {% for r in group %}{{ reading_row(r) }}{% endfor %}
+    </ul></li>
+    {% else %}
+      {{ reading_row(group[0]) }}
+    {% endif %}
   {% endfor %}
 </ul>

@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Reports</h1>
-    <p class="page-subtitle">{{ "Weekly (Monday–Sunday)" if period == "week" else "Monthly" }} summaries, newest first. Averages give each day equal weight (average of daily averages).</p>
+    <p class="page-subtitle">{{ "Weekly (Monday–Sunday)" if period == "week" else "Monthly" }} summaries, newest first. Averages give each day equal weight; within a day, readings taken within 5 minutes of each other count as one session.</p>
   </div>
 </div>
 
@@ -35,7 +35,7 @@
 <section class="panel report-card">
   <div class="section-head">
     <h2>{{ r.label }}</h2>
-    <span class="muted">{{ r.count }} reading{{ "" if r.count == 1 else "s" }} · {{ r.days }} day{{ "" if r.days == 1 else "s" }}</span>
+    <span class="muted">{{ r.count }} reading{{ "" if r.count == 1 else "s" }}{% if r.sessions != r.count %} in {{ r.sessions }} session{{ "" if r.sessions == 1 else "s" }}{% endif %} · {{ r.days }} day{{ "" if r.days == 1 else "s" }}</span>
   </div>
   <div class="table-wrap">
     <table class="report-table">

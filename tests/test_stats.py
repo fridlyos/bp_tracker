@@ -43,8 +43,8 @@ def test_daily_averages_math():
                                (c.username,)).fetchone()[0]
         rows = service.daily_averages(conn, user_id, date(2026, 10, 1), date(2026, 10, 3))
     assert rows == [
-        {"x": "2026-10-01", "systolic": 125.3, "diastolic": 82.0, "pulse": 65.5, "count": 3},
-        {"x": "2026-10-03", "systolic": 140.0, "diastolic": 90.0, "pulse": 75.0, "count": 1},
+        {"x": "2026-10-01", "systolic": 125.3, "diastolic": 82.0, "pulse": 65.5, "count": 3, "sessions": 3},
+        {"x": "2026-10-03", "systolic": 140.0, "diastolic": 90.0, "pulse": 75.0, "count": 1, "sessions": 1},
     ]
 
 

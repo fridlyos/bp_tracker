@@ -751,3 +751,13 @@ a.cal-open svg { width: 20px; height: 20px; fill: none; stroke: currentColor; st
   stroke-linecap: round; stroke-linejoin: round; }
 .cal-host { margin: 0; font-size: .85rem; }
 a.stat { text-decoration: none; color: inherit; }
+
+
+/* --- BP: readings within 5 min shown as one measuring session */
+.bp-session { border-top: 1px solid var(--border); }
+.bp-session .bp-value { color: var(--primary); }
+.bp-session-tag { font-size: .7rem; vertical-align: .15em; margin-left: .3rem; }
+li.bp-session-items { display: block; padding: 0 0 .2rem .9rem; border-top: none;
+  border-left: 3px solid var(--btn2-bg); margin-left: .2rem; }
+li.bp-session-items .entry-list li:first-child { border-top: none; }
+li.bp-session-items .bp-value { font-size: .95em; }
